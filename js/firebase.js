@@ -5,8 +5,19 @@ import { firebaseConfig } from './firebase.config.js';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut as fbSignOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { getFirestore, doc, getDoc, setDoc, serverTimestamp, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { initializeAppCheck, ReCaptchaV3Provider } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check.js';
 
 const app = initializeApp(firebaseConfig);
+// Optional App Check init: set window.DK_APP_CHECK_SITE_KEY = 'your-site-key' to enable
+try{
+  const siteKey = (typeof window!== 'undefined' && window.DK_APP_CHECK_SITE_KEY) ? String(window.DK_APP_CHECK_SITE_KEY) : '';
+  if(siteKey){
+    initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(siteKey),
+      isTokenAutoRefreshEnabled: true
+    });
+  }
+}catch{}
 const auth = getAuth(app);
 const db = getFirestore(app);
 const DOC_PATH = 'households/familyA';
