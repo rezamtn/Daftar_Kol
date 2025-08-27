@@ -8,7 +8,7 @@
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <!-- Inline fallback favicon to avoid 404 /favicon.ico on refresh in some environments -->
   <link rel="alternate icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23232a3a'/%3E%3Ctext x='50%' y='54%' dominant-baseline='middle' text-anchor='middle' font-family='Segoe UI, Arial' font-size='34' fill='%23ffffff'%3E%F0%9F%93%92%3C/text%3E%3C/svg%3E" />
-  <link rel="stylesheet" href="css/styles.css?v=9" />
+  <link rel="stylesheet" href="css/styles.css?v=10" />
 </head>
   <body class="logged-out">
     <div class="wrap">
@@ -369,12 +369,15 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
-  <script src="js/backup.js?v=3"></script>
-  <script type="module" src="js/firebase.js"></script>
+  <script src="js/backup.js?v=4"></script>
+  <script type="module" src="js/firebase.js?v=2"></script>
   <script src="js/utils/confirm.js"></script>
   <script src="js/utils/delete.js"></script>
   <script src="js/utils/print-card.js"></script>
-  <script src="js/app.js?v=14"></script>
+  <script src="js/utils/edit-card.js?v=2"></script>
+  <script src="js/utils/delete-card.js?v=1"></script>
+  <script src="js/utils/resolve-card.js?v=1"></script>
+  <script src="js/app.js?v=15"></script>
   <script>
     // Fallback: ensure joint-mode toggles purely by select state, even if app.js handlers missed
     (function(){

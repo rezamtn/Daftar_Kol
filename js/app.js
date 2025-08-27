@@ -144,6 +144,12 @@
         const addBtn = `<button class="btn small" style="margin-inline-start:auto" onclick="try{ window.dk_addNewPayment('${loanId}'); }catch{}">➕ افزودن پرداخت جدید</button>`;
         return `<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px; width:100%">${chip('all','همه')} ${chip('interest','فقط سود')} ${chip('principal','فقط اصل')} ${addBtn}</div>`;
       };
+    // Ensure external modules (EditCard) can invoke the exact same editor logic
+    try{ window.enterEditMode = enterEditMode; }catch{}
+    // Make the core loan editor callable from external modules (EditCard)
+    try{ window.enterEditMode = enterEditMode; }catch{}
+    // Expose editor so external modules (EditCard) can trigger the exact same behavior
+    try{ window.enterEditMode = enterEditMode; }catch{}
       if(list.length===0){
         body = mkToolbar() + '<div class="small" style="opacity:.8">— پرداختی مطابق فیلتر یافت نشد —</div>';
       }else{
@@ -348,16 +354,9 @@
       const idx = pays.findIndex(x=> String(x.id)===String(paymentId));
       if(idx<0) return;
       const loanId = pays[idx]?.loanId;
-      let ok = true;
-      try{
-        if(typeof infoFa==='function'){
-          const res = await infoFa('حذف پرداخت', '<div>آیا از حذف این پرداخت مطمئن هستید؟</div>', { okText:'حذف', cancelText:'انصراف' });
-          // Treat anything except explicit cancel as OK (to be robust to different return shapes)
-          ok = !(res===false || res==='cancel' || (res && (res.ok===false || res.cancel===true)));
-        }else{
-          ok = window.confirm('این پرداخت حذف شود؟');
-        }
-      }catch{ ok = true; }
+      // Unified delete modal via Delete.ask
+      let ok = false;
+      try{ ok = await (window.Delete?.ask ? window.Delete.ask('این پرداخت') : confirmFa('این پرداخت حذف شود؟')); }catch{ ok = true; }
       if(!ok) { try{ console.log('[DK][delPay] cancelled'); }catch{} return; }
       try{ console.log('[DK][delPay] deleting id', paymentId); }catch{}
       pays.splice(idx,1);
@@ -375,15 +374,9 @@
       const pays = Array.isArray(state?.pays)? state.pays:[];
       if(idx==null || idx<0 || idx>=pays.length) return;
       const loanId = pays[idx]?.loanId;
-      let ok = true;
-      try{
-        if(typeof infoFa==='function'){
-          const res = await infoFa('حذف پرداخت', '<div>آیا از حذف این پرداخت مطمئن هستید؟</div>', { okText:'حذف', cancelText:'انصراف' });
-          ok = (res===true) || (res==='ok') || (res && res.ok===true);
-        }else{
-          ok = window.confirm('این پرداخت حذف شود؟');
-        }
-      }catch{ ok = true; }
+      // Unified delete modal via Delete.ask
+      let ok = false;
+      try{ ok = await (window.Delete?.ask ? window.Delete.ask('این پرداخت') : confirmFa('این پرداخت حذف شود؟')); }catch{ ok = true; }
       if(!ok) { try{ console.log('[DK][delPay] cancelled'); }catch{} return; }
       try{ console.log('[DK][delPay] deleting index', idx); }catch{}
       pays.splice(idx,1);
@@ -1021,12 +1014,8 @@
             const loan = (state.loans||[]).find(l=> l.id===id);
             if(!loan) return;
 
-            // Edit must behave identically everywhere -> always delegate to table edit
-            if(act==='edit'){
-              try{ console.debug('[DK][cards] edit -> delegate table edit', id); }catch{}
-              clickTableAction('edit', id);
-              return;
-            }
+            // Edit is handled centrally by EditCard module to avoid regressions
+            if(act==='edit'){ return; }
 
             // سایر اکشن‌های مشترک با جدول: del, resolve
             // نرمال‌سازی: در برخی کارت‌ها هنوز data-act="loan-pay" است؛ آن را به "resolve" نگاشت می‌کنیم
@@ -3194,7 +3183,7 @@ host._bound = true;
         if(delBtn){
           const id = delBtn.getAttribute('data-id'); if(!id) return;
           if(!archiveUnlocked) return;
-          const ok = await confirmFa('این قرض از بایگانی حذف شود؟');
+          const ok = await (window.Delete?.ask ? window.Delete.ask('این قرض از بایگانی') : confirmFa('این قرض از بایگانی حذف شود؟'));
           if(!ok) return;
           state.loans = state.loans.filter(l=> l.id!==id);
           state.pays  = state.pays.filter(p=> p.loanId!==id);
@@ -3804,17 +3793,6 @@ host._bound = true;
       if(rAlt) rAlt.value = loan.repaymentDate || '';
       if(rIn) rIn.value = fmtFaYMD(loan.repaymentDate||'');
       const rHint = document.querySelector(IDS.repaymentDateHint); if(rHint){ const fa=fmtFaDate(loan.repaymentDate||''), en=fmtEnDate(loan.repaymentDate||''); rHint.textContent = (fa&&en)? `${fa} — ${en}`: ''; }
-      // notes
-      form.querySelector('[name="notes"]').value = loan.notes||'';
-      // buttons
-      if(submitBtn) submitBtn.textContent = 'ذخیره ویرایش';
-      if(cancelBtn) cancelBtn.style.display = '';
-      // derived
-      recomputeRepaymentFromUI();
-      // Force compute of totals and expected interest (total + shares)
-      try{ updateJointComputed(); }catch{}
-      try{ typeof updateExpected === 'function' && updateExpected(); }catch{}
-      // Editing init finished
       try{ window._dkEditingLoan = false; }catch{}
       // Defensive: late-bound listeners may still clear fields; force re-fill a few times
       const refiller = ()=>{
@@ -3865,12 +3843,12 @@ host._bound = true;
         setTimeout(refiller, 0);
         setTimeout(refiller, 150);
         setTimeout(refiller, 350);
-        setTimeout(refiller, 700);
         setTimeout(refiller, 1200);
         setTimeout(refiller, 2000);
         setTimeout(refiller, 3000);
       }catch{}
     };
+    try{ window.enterEditMode = enterEditMode; }catch{}
 
     cancelBtn?.addEventListener('click', ()=>{
       editingId = '';
@@ -4063,7 +4041,7 @@ host._bound = true;
         if(!id) return;
         const loan = state.loans.find(l=> l.id===id);
         if(!loan || (!canModifyLoan(loan) && !isAdminUser())) return;
-        const ok = await confirmFa('این قرض حذف شود؟');
+        const ok = await (window.Delete?.ask ? window.Delete.ask('این قرض') : confirmFa('این قرض حذف شود؟'));
         if(!ok) return;
         state.loans = state.loans.filter(l=> l.id!==id);
         state.pays = state.pays.filter(p=> p.loanId!==id);
@@ -4429,13 +4407,13 @@ host._bound = true;
         if(!id) return;
         const pay = state.pays.find(x=> x.id===id);
         if(pay && !canModifyPayment(pay) && !isAdminUser()) return;
-        const ok = await confirmFa('این پرداخت حذف شود؟');
+        const ok = await (window.Delete?.ask ? window.Delete.ask('این پرداخت') : confirmFa('این پرداخت حذف شود؟'));
         if(!ok) return;
         state.pays = state.pays.filter(x=> x.id !== id);
         // Refresh both tables because deleting a payment affects loan-derived fields
         refreshPaysTable();
-        try{ refreshLoansTable(); }catch{}
-        try{ updateSummary(); }catch{}
+        refreshLoansTable();
+        updateSummary();
         return;
       }
       if(editBtn){

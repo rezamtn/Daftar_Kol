@@ -3,10 +3,22 @@
   const Delete = {
     // Ask with unified labels (uses Confirm module under the hood)
     ask: function(name){
-      const msg = name ? `آیا از حذف ${name} مطمئن هستید؟` : 'آیا از حذف این مورد مطمئن هستید؟';
-      if(window.Confirm && typeof window.Confirm.delete === 'function'){
-        return window.Confirm.delete(name || 'این مورد');
-      }
+      const noun = (name || 'این مورد').toString();
+      const msg = `آیا از حذف ${noun} مطمئن هستید؟`;
+      // Prefer Confirm module (standard confirmation UI)
+      try{
+        if(window.Confirm && typeof window.Confirm.ask === 'function'){
+          return window.Confirm.ask(msg, { okText: 'حذف', cancelText: 'انصراف' });
+        }
+      }catch{}
+      // Fallback to info modal (still styled nicely)
+      try{
+        if(typeof window.infoFa === 'function'){
+          return window.infoFa(`حذف ${noun}` , `<div>${msg}</div>`, { okText: 'حذف', cancelText: 'انصراف' })
+            .then(res=> (res===true) || (res==='ok') || (res && res.ok===true));
+        }
+      }catch{}
+      // Last resort: native confirm
       try{ return Promise.resolve(!!window.confirm(msg)); }catch{ return Promise.resolve(true); }
     },
     // Bind a click handler to a specific element
