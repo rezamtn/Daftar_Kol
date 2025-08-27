@@ -1,0 +1,658 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>دفتر کل</title>
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <!-- Inline fallback favicon to avoid 404 /favicon.ico on refresh in some environments -->
+  <link rel="alternate icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23232a3a'/%3E%3Ctext x='50%' y='54%' dominant-baseline='middle' text-anchor='middle' font-family='Segoe UI, Arial' font-size='34' fill='%23ffffff'%3E%F0%9F%93%92%3C/text%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="css/styles.css?v=9" />
+</head>
+  <body class="logged-out">
+    <div class="wrap">
+      <header class="head">
+        <div class="head-top">
+          <div class="head-meta">
+            <h1><span class="app-logo" aria-hidden="true">
+              <svg class="app-logo-fallback" width="30" height="30" viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Icon">
+                <defs>
+                  <linearGradient id="lgBook" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#8b5cf6"/>
+                    <stop offset="100%" stop-color="#60a5fa"/>
+                  </linearGradient>
+                  <linearGradient id="lgCalc" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#38bdf8"/>
+                    <stop offset="100%" stop-color="#2563eb"/>
+                  </linearGradient>
+                  <linearGradient id="lgCoin" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#fcd34d"/>
+                    <stop offset="100%" stop-color="#f59e0b"/>
+                  </linearGradient>
+                </defs>
+                <!-- ledger book -->
+                <g transform="translate(8,22)">
+                  <rect x="4" y="6" width="48" height="28" rx="6" fill="#0f172a" stroke="url(#lgBook)" stroke-width="2"/>
+                  <rect x="0" y="4" width="6" height="32" rx="3" fill="#1e293b"/>
+                  <path d="M12 12h34M12 18h34M12 24h22" stroke="#e2e8f0" stroke-linecap="round" stroke-width="2"/>
+                </g>
+                <!-- coins stack -->
+                <g transform="translate(20,56)">
+                  <ellipse cx="10" cy="6" rx="10" ry="6" fill="url(#lgCoin)" stroke="#fde68a"/>
+                  <ellipse cx="20" cy="3" rx="10" ry="6" fill="url(#lgCoin)" stroke="#fde68a"/>
+                </g>
+                <!-- calculator (slightly rotated) -->
+                <g transform="translate(52,46) rotate(-6 16 12)">
+                  <rect x="0" y="0" width="32" height="24" rx="6" fill="url(#lgCalc)" stroke="#93c5fd"/>
+                  <rect x="6" y="4" width="20" height="6" rx="2" fill="#082f49" opacity=".75"/>
+                  <g fill="#e0f2fe">
+                    <rect x="6" y="12" width="4" height="4" rx="1"/>
+                    <rect x="12" y="12" width="4" height="4" rx="1"/>
+                    <rect x="18" y="12" width="4" height="4" rx="1"/>
+                    <rect x="24" y="12" width="4" height="4" rx="1"/>
+                    <rect x="6" y="18" width="4" height="4" rx="1"/>
+                    <rect x="12" y="18" width="4" height="4" rx="1"/>
+                    <rect x="18" y="18" width="4" height="4" rx="1"/>
+                    <rect x="24" y="18" width="4" height="4" rx="1"/>
+                  </g>
+                </g>
+              </svg>
+            </span>
+            <span>دفتر کل</span></h1>
+            <p class="sub">ثبت و پیگیری قرض‌ها، سود ماهانه و پرداخت‌ها</p>
+          </div>
+          <div id="authControls" class="small">
+            <div data-when="out" style="display:none; gap:6px; align-items:center">
+              <input id="authEmailInput" placeholder="email" />
+              <input id="authPassInput" placeholder="password" type="password" />
+              <button id="btnLogin" class="btn small">ورود</button>
+            </div>
+            <div data-when="in" style="display:none; gap:8px; align-items:center">
+              <span>ورود با: <strong id="authEmail">—</strong></span>
+              <button id="btnLogout" class="btn small danger">خروج</button>
+            </div>
+          </div>
+          <div id="todayBanner" class="small" style="margin-top:8px"><!-- injected by JS --></div>
+        </div>
+      </header>
+
+      <div id="protectedApp" style="display:none">
+      <section class="summary" aria-label="خلاصه وضعیت">
+        <div class="sum-item">
+          <div class="sum-label">جمع مانده اصل</div>
+          <div class="sum-value" id="sumTotalBalance">—</div>
+        </div>
+        <div class="sum-item">
+          <div class="sum-label">وام‌های فعال</div>
+          <div class="sum-value" id="sumActiveLoans">—</div>
+          <div id="sumByStatus" class="sum-list small">—</div>
+        </div>
+      </section>
+
+    
+
+      <section class="summary" aria-label="تفکیک مانده اصل بر اساس بستانکار">
+        <div class="sum-item wide">
+          <div class="sum-label">جمع مانده اصل به تفکیک بستانکار</div>
+          <div id="sumByCreditor" class="sum-list">—</div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>➕ ثبت قرض جدید</h2>
+        <form id="loanForm" class="form" novalidate>
+        <div class="row">
+          <label>نام بستانکار
+            <select id="creditorPreset">
+              <option value="joint">سارا و رضا مشترک</option>
+              <option value="sara">سارا</option>
+              <option value="reza">رضا</option>
+              <option value="manual">وارد کردن نام به صورت دستی</option>
+            </select>
+            <input name="creditor" id="creditor" placeholder="مثال: رضا" style="display:none" />
+            <button type="button" id="creditorBackBtn" class="btn ghost small" style="display:none; margin-top:6px">انتخاب سارا و رضا مشترک</button>
+          </label>
+          <label>نام گیرنده
+            <input name="borrower" required placeholder="مثال: علی" />
+          </label>
+          <label>تاریخ شروع
+            <input name="startDate" id="startDate" type="text" required placeholder="از تقویم انتخاب کنید" readonly />
+            <input type="hidden" id="startDateAlt" name="startDateAlt" />
+            <small class="small" id="startDateHint"></small>
+          </label>
+          <label>مبلغ اصل (تومان)
+            <input name="principal" id="principalInput" inputmode="numeric" autocomplete="off" required placeholder="مثال: ۵۰٬۰۰۰٬۰۰۰" />
+            <small class="small" id="principalWords"></small>
+          </label>
+        </div>
+        <!-- Joint mode: principal split -->
+        <div id="jointPrincipalFields" class="row">
+          <label>اصل سهم سارا (تومان)
+            <input id="principalSaraInput" inputmode="numeric" autocomplete="off" placeholder="مثال: ۳۰٬۰۰۰٬۰۰۰" />
+            <small class="small" id="principalSaraWords"></small>
+          </label>
+          <label>اصل سهم رضا (تومان)
+            <input id="principalRezaInput" inputmode="numeric" autocomplete="off" placeholder="مثال: ۲۰٬۰۰۰٬۰۰۰" />
+            <small class="small" id="principalRezaWords"></small>
+          </label>
+        </div>
+        <div class="row">
+          <label>سود ماهانه (درصد)
+            <input name="rateMonthlyPct" id="rateMonthlyPct" type="text" inputmode="decimal" autocomplete="off" required placeholder="مثال: 2" />
+            <small class="small" id="aprHint">نرخ سالانه ≈ —</small>
+          </label>
+          <label>سود سالانه موثر (درصد)
+            <input name="rateAnnualPct" id="rateAnnualPct" type="text" inputmode="decimal" autocomplete="off" placeholder="اختیاری" />
+            <small class="small">در صورت وارد کردن، ماهانه به‌صورت خودکار محاسبه می‌شود</small>
+          </label>
+          <label>مدت قرض (ماه)
+            <input name="interestEveryMonths" id="interestEveryMonths" inputmode="numeric" autocomplete="off" placeholder="مثال: ۱" />
+          </label>
+          <label>نحوه پرداخت سود
+            <select name="interestPayoutMode" id="interestPayoutMode">
+              <option value="1">ماهانه</option>
+              <option value="2">دو ماه یک‌بار</option>
+              <option value="3">سه ماه یک‌بار</option>
+              <option value="0">در سررسید</option>
+            </select>
+          </label>
+          <label>تاریخ تسویه نهایی (خودکار)
+            <input name="repaymentDate" id="repaymentDate" type="text" placeholder="به‌صورت خودکار پر می‌شود" readonly class="display-only" tabindex="-1" aria-readonly="true" />
+            <input type="hidden" id="repaymentDateAlt" name="repaymentDateAlt" />
+            <small class="small" id="repaymentDateHint"></small>
+          </label>
+        </div>
+        <div class="row">
+          <label class="grow"><span id="expectedInterestLabel">سود قابل انتظار پرداختی ماهانه</span>
+            <input id="expectedInterestAmount" readonly placeholder="—" />
+            <small class="small" id="expectedInterestHint">بر اساس اصل × سود ماهانه × دوره انتخابی محاسبه می‌شود</small>
+          </label>
+        </div>
+        <!-- Joint mode: expected interest split -->
+        <div id="jointInterestFields" class="row">
+          <label><span id="labelExpectedSaraText">سود پرداختیِ سهم سارا (ماهانه/دوره‌ای)</span>
+            <input id="expectedInterestSara" readonly placeholder="—" />
+          </label>
+          <label><span id="labelExpectedRezaText">سود پرداختیِ سهم رضا (ماهانه/دوره‌ای)</span>
+            <input id="expectedInterestReza" readonly placeholder="—" />
+          </label>
+        </div>
+        <div class="row">
+          <label class="grow">توضیحات
+            <textarea name="notes" rows="3" placeholder="اختیاری"></textarea>
+          </label>
+        </div>
+        <div class="actions">
+          <button type="submit" id="submitLoanBtn" class="btn">ثبت قرض</button>
+          <button type="button" id="cancelEdit" class="btn ghost" style="display:none">انصراف از ویرایش</button>
+          <button type="reset" class="btn ghost">پاک کردن</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>📋 لیست قرض‌ها</h2>
+      <div class="table-toolbar" aria-label="نمایش لیست">
+        <div class="view-toggle" role="tablist" aria-label="نمای نمایش">
+          <button type="button" id="viewTableBtn" class="btn small" role="tab" aria-selected="true">نمای جدول</button>
+          <button type="button" id="viewCardsBtn" class="btn small ghost" role="tab" aria-selected="false">نمای کارت</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table id="loansTable">
+          <thead>
+            <tr>
+              <th>بستانکار</th>
+              <th>گیرنده</th>
+              <th>شروع</th>
+              <th>اصل (تومان)</th>
+              <th>سود ماهانه</th>
+              <th>مدت (ماه)</th>
+              <th>نحوه پرداخت سود</th>
+              <th>سود پرداختی (متناسب با نحوه پرداخت)</th>
+              <th>مانده اصل</th>
+              <th>تسویه نهایی</th>
+              <th>توضیحات</th>
+              <th>عملیات</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <!-- Cards view (hidden by default) -->
+      <div id="loansCards" class="cards-grid" style="display:none" aria-live="polite"></div>
+    </section>
+
+    
+
+    
+
+    <section class="card">
+      <h2>💳 ثبت پرداخت</h2>
+      <form id="paymentForm" class="form" novalidate>
+        <div class="row">
+          <label>قرض
+            <select name="loanId" id="loanSelect"></select>
+          </label>
+          <label>تاریخ پرداخت
+            <input name="date" id="payDate" type="text" required placeholder="از تقویم انتخاب کنید" readonly />
+            <input type="hidden" id="payDateAlt" name="payDateAlt" />
+            <small class="small" id="payDateHint"></small>
+          </label>
+          <label>نوع پرداخت
+            <select name="type" required>
+              <option value="">— انتخاب نوع —</option>
+              <option value="interest">سود</option>
+              <option value="principal">اصل</option>
+            </select>
+          </label>
+          <label>مبلغ (تومان)
+            <input name="amount" id="payAmountInput" inputmode="numeric" autocomplete="off" required />
+            <small class="small" id="payAmountWords"></small>
+          </label>
+        </div>
+        <div class="actions">
+          <button type="submit" id="submitPayBtn" class="btn">ثبت پرداخت</button>
+          <button type="button" id="cancelPayEdit" class="btn ghost" style="display:none">انصراف از ویرایش</button>
+        </div>
+      </form>
+
+      <div class="pay-filters" aria-label="فیلتر پرداخت‌ها">
+        <label>گیرنده
+          <input id="payFilterBorrower" placeholder="همه" />
+        </label>
+        <label>نوع پرداخت
+          <select id="payFilterType">
+            <option value="all">همه</option>
+            <option value="interest">سود</option>
+            <option value="principal">اصل</option>
+          </select>
+        </label>
+        <label>از تاریخ
+          <input id="payFilterFrom" type="text" placeholder="—" />
+          <input id="payFilterFromAlt" type="hidden" />
+        </label>
+        <label>تا تاریخ
+          <input id="payFilterTo" type="text" placeholder="—" />
+          <input id="payFilterToAlt" type="hidden" />
+        </label>
+        <button id="payFilterClear" class="btn ghost small icon" title="پاک‌سازی فیلتر" aria-label="پاک‌سازی فیلتر">🧹 پاک‌سازی</button>
+      </div>
+
+      <div class="table-wrap" style="margin-top:10px">
+        <table id="paymentsTable">
+          <thead>
+            <tr>
+              <th>گیرنده</th>
+              <th>تاریخ پرداخت</th>
+              <th>نوع</th>
+              <th>مبلغ (تومان)</th>
+              <th>اقساط باقی‌مانده</th>
+              <th>مانده اصل پس از پرداخت</th>
+              <th>عملیات</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Archive card -->
+    <section class="card">
+      <h2>🗄️ بایگانی <button id="archiveLockBtn" class="btn small ghost" title="قفل/بازکردن">🔒</button></h2>
+      <div class="table-wrap">
+        <table id="archiveTable">
+          <thead>
+            <tr>
+              <th>بستانکار</th>
+              <th>گیرنده</th>
+              <th>مبلغ کلی وام</th>
+              <th>تسویه نهایی</th>
+              <th>وضعیت</th>
+              <th>عملیات</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  
+  <!-- Backup card (last section) -->
+  <section class="card">
+    <h2>🗂️ پشتیبان‌گیری / بازیابی <button id="backupLockBtn" class="btn small ghost" title="قفل/بازکردن">🔒</button></h2>
+    <small class="small" id="lastBackupHint" style="display:block; margin:6px 0 10px">—</small>
+    <div id="backupControls" style="display:none">
+      <div class="row" style="align-items:center; flex-wrap:nowrap">
+        <label class="btn ghost small" style="position:relative; overflow:hidden">
+          بارگذاری JSON
+          <input id="importJson" type="file" accept="application/json" style="position:absolute; inset:0; opacity:0; cursor:pointer" />
+        </label>
+        <div style="display:inline-flex; flex-direction:column; gap:4px; align-items:flex-start; position:relative">
+          <button id="downloadLatestBackup" class="btn ghost small">دانلود اطلاعات</button>
+        </div>
+        <span class="small">فایل شامل تمام قرض‌ها، پرداخت‌ها و فایل‌های آرشیو است.</span>
+      </div>
+
+      <div style="margin-top:8px; display:flex; justify-content:flex-start">
+        <button id="advToggle" class="btn ghost small" aria-expanded="false">ابزارهای پیشرفته</button>
+      </div>
+
+      <!-- Advanced (debug-only) cloud controls -->
+      <div id="advancedCloudControls" class="small" style="display:none; margin-top:10px; gap:8px">
+        <div style="display:flex; gap:8px; flex-wrap:wrap">
+          <button id="btnCloudLoad" class="btn ghost small">بارگذاری ⤓</button>
+          <button id="btnCloudSave" class="btn ghost small">ذخیره ⤒</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  </div> <!-- end #protectedApp -->
+
+  <!-- Password Modal for Backup Unlock -->
+  <div id="backupPwdModal" class="modal-backdrop" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:1000; align-items:center; justify-content:center">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="backupPwdTitle" style="background:#111a2b; color:#e5ecff; border:1px solid #25324a; border-radius:12px; padding:16px; min-width:260px; max-width:90vw; box-shadow:0 20px 50px rgba(0,0,0,.5); direction:rtl">
+      <div class="modal-body" style="margin-bottom:12px">
+        <div id="backupPwdTitle" style="margin-bottom:8px">رمز عبور برای پشتیبان‌گیری و بازیابی را وارد کنید</div>
+        <div style="position:relative">
+          <input id="backupPwdInput" class="modal-input" type="password" autocomplete="off" style="width:100%; background:#14213a; color:#e5ecff; border:1px solid #25324a; border-radius:8px; padding:8px 36px 8px 10px">
+          <button type="button" id="backupPwdEye" class="pw-eye" aria-label="نمایش/مخفی" style="position:absolute; inset-inline-end:6px; top:50%; transform:translateY(-50%); background:transparent; border:0; color:#bcd0ff; cursor:pointer">👁️</button>
+        </div>
+        <small id="backupPwdErr" class="small" style="color:#f43f5e; display:none; margin-top:6px">رمز نادرست است</small>
+      </div>
+      <div class="modal-actions" style="display:flex; gap:8px; justify-content:flex-end">
+        <button id="backupPwdOk" class="btn" style="background:#16233a; color:#e5ecff; border:1px solid #25324a; padding:8px 12px; border-radius:10px">تایید</button>
+        <button id="backupPwdCancel" class="btn ghost" style="background:transparent; color:#e5ecff; border:1px solid #25324a; padding:8px 12px; border-radius:10px">انصراف</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+  <script src="js/backup.js?v=3"></script>
+  <script type="module" src="js/firebase.js"></script>
+  <script src="js/utils/confirm.js"></script>
+  <script src="js/utils/delete.js"></script>
+  <script src="js/utils/print-card.js"></script>
+  <script src="js/app.js?v=14"></script>
+  <script>
+    // Fallback: ensure joint-mode toggles purely by select state, even if app.js handlers missed
+    (function(){
+      function applyJoint(){
+        try{
+          var sel = document.getElementById('creditorPreset'); if(!sel) return;
+          var txt = (sel.options && sel.selectedIndex>=0 && sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].textContent : '') || '';
+          var on = (String(sel.value).trim().toLowerCase()==='joint') || /مشترک/.test(txt||'');
+          document.body.classList.toggle('joint-mode', !!on);
+          // Lock/unlock principal input accordingly
+          var main = document.getElementById('principalInput'); if(main) main.readOnly = !!on;
+        }catch{}
+      }
+      function init(){
+        var sel = document.getElementById('creditorPreset'); if(!sel) return;
+        ['change','input','click'].forEach(function(ev){ sel.addEventListener(ev, applyJoint); });
+        applyJoint(); setTimeout(applyJoint, 100); setTimeout(applyJoint, 400);
+      }
+      if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+    })();
+  </script>
+  <script>
+    // Fallback formatter for joint principal fields (self-contained)
+    (function(){
+      function toFaDigits(str){
+        var map={'0':'۰','1':'۱','2':'۲','3':'۳','4':'۴','5':'۵','6':'۶','7':'۷','8':'۸','9':'۹'}; var out='';
+        str=String(str||''); for(var i=0;i<str.length;i++){ var ch=str[i]; out += (map[ch]||ch); } return out;
+      }
+      function toAscii(str){
+        var s=String(str||''); var m={'۰':'0','۱':'1','۲':'2','۳':'3','۴':'4','۵':'5','۶':'6','۷':'7','۸':'8','۹':'9','٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9'};
+        var out=''; for(var i=0;i<s.length;i++){ var ch=s[i]; out+= (m[ch]||ch); } return out;
+      }
+      function faFormatInt(n){
+        try{
+          // Format with en-US to get ASCII comma on baseline, then convert digits to Persian, keep comma as ','
+          var grouped = Number(n||0).toLocaleString('en-US');
+          return toFaDigits(grouped);
+        }catch{ return String(n||'') }
+      }
+      // Three-digit to words (fa)
+      function three(n){
+        var ones=['','یک','دو','سه','چهار','پنج','شش','هفت','هشت','نه'];
+        var tens=['','ده','بیست','سی','چهل','پنجاه','شصت','هفتاد','هشتاد','نود'];
+        var teens=['ده','یازده','دوازده','سیزده','چهارده','پانزده','شانزده','هفده','هجده','نوزده'];
+        var hundreds=['','صد','دویست','سیصد','چهارصد','پانصد','ششصد','هفتصد','هشتصد','نهصد'];
+        n = n|0; if(n===0) return '';
+        var h = (n/100)|0, r = n%100, t = (r/10)|0, o = r%10, parts=[];
+        if(h) parts.push(hundreds[h]);
+        if(r){
+          if(r<10) parts.push(ones[o]);
+          else if(r<20) parts.push(teens[r-10]);
+          else{ parts.push(tens[t] + (o? ' و ' + ones[o] : '')); }
+        }
+        return parts.join(' و ');
+      }
+      function num2faLite(num){
+        num = Math.floor(Math.abs(Number(num)||0));
+        if(num===0) return 'صفر';
+        var units=['','هزار','میلیون','میلیارد','تریلیون'];
+        var parts=[]; var i=0;
+        while(num>0){ var chunk=num%1000; if(chunk){ var words=three(chunk); var unit=units[i]||''; parts.unshift(words + (unit? ' ' + unit : '')); } num=Math.floor(num/1000); i++; }
+        return parts.join(' و ').trim();
+      }
+      function updateTotalFromSplit(){
+        try{
+          var s = document.getElementById('principalSaraInput');
+          var r = document.getElementById('principalRezaInput');
+          var main = document.getElementById('principalInput');
+          if(!s || !r) return;
+          // Do not override while editing an existing loan
+          var lf = document.getElementById('loanForm');
+          var isEditing = false;
+          try{ isEditing = !!( (lf && lf.classList && lf.classList.contains('editing')) || (window && window._dkEditingLoan) ); }catch{}
+          var rawS = toAscii(s.value).replace(/[^0-9]/g,'');
+          var rawR = toAscii(r.value).replace(/[^0-9]/g,'');
+          var nS = parseInt(rawS||'0',10)||0;
+          var nR = parseInt(rawR||'0',10)||0;
+          var sum = nS + nR;
+          if(main){
+            var currentRaw = toAscii(main.value).replace(/[^0-9]/g,'');
+            // Only mirror when not editing and user actually provided a split (>0)
+            if(!isEditing && sum>0 && currentRaw !== String(sum)){
+              main.value = faFormatInt(sum);
+              // Do NOT dispatch input here to prevent recursion
+            }
+          }
+          return { nS:nS, nR:nR, sum:sum };
+        }catch{}
+      }
+      function parseDecimalFa(str){
+        var ascii = toAscii(String(str||''));
+        ascii = ascii.replace(/[^0-9.]/g,'');
+        var firstDot = ascii.indexOf('.'); if(firstDot>=0){ ascii = ascii.slice(0, firstDot+1) + ascii.slice(firstDot+1).replace(/\./g,''); }
+        var n = parseFloat(ascii||'0'); return isFinite(n)? n : 0;
+      }
+      function setJointShareLabels(){
+        try{
+          var sel = document.getElementById('interestPayoutMode');
+          var valStr = String(sel?.value ?? '1');
+          var mode = parseInt(valStr,10);
+          if(!isFinite(mode)) mode = 1;
+          // Fallback by selected option text (defensive)
+          var optTxt = '';
+          try{ if(sel && sel.options && sel.selectedIndex>=0) optTxt = String(sel.options[sel.selectedIndex].textContent||''); }catch{}
+          if(/سررسید/.test(optTxt)) mode = 0;
+          var sara = document.getElementById('labelExpectedSaraText');
+          var reza = document.getElementById('labelExpectedRezaText');
+          var txtS = '';
+          var txtR = '';
+          if(mode===1){
+            txtS = 'سود پرداختیِ ماهانه سهم سارا';
+            txtR = 'سود پرداختیِ ماهانه سهم رضا';
+          }else if(mode===2){
+            txtS = 'سود پرداختیِ دو ماه یک بار سهم سارا';
+            txtR = 'سود پرداختیِ دو ماه یک بار سهم رضا';
+          }else if(mode===3){
+            txtS = 'سود پرداختیِ سه ماه یکبار سهم سارا';
+            txtR = 'سود پرداختیِ سه ماه یکبار سهم رضا';
+          }else{ // 0: در سررسید
+            txtS = 'سود پرداختیِ سهم سارا در سر رسید';
+            txtR = 'سود پرداختیِ سهم رضا در سر رسید';
+          }
+          if(sara) sara.textContent = txtS;
+          if(reza) reza.textContent = txtR;
+        }catch{}
+      }
+      function updateExpectedShares(){
+        try{
+          setJointShareLabels();
+          var hasJoint = !!(document.getElementById('principalSaraInput') && document.getElementById('principalRezaInput'));
+          if(!hasJoint) return;
+          var data = updateTotalFromSplit()||{nS:0,nR:0,sum:0};
+          var rateMonthly = parseDecimalFa(document.getElementById('rateMonthlyPct')?.value||'0');
+          if(!rateMonthly){
+            // Fallback: derive monthly from annual effective if provided
+            var ann = parseDecimalFa(document.getElementById('rateAnnualPct')?.value||'0');
+            if(ann){ rateMonthly = (Math.pow(1 + ann/100, 1/12) - 1) * 100; }
+          }
+          var every = parseInt(toAscii(document.getElementById('interestEveryMonths')?.value||'0').replace(/[^0-9]/g,''),10)||0;
+          var mode = parseInt(String(document.getElementById('interestPayoutMode')?.value||'1'),10)||1;
+          var k = (mode===0) ? every : mode;
+          var expectedTotal = Math.max(0, Math.round(data.sum * (rateMonthly/100) * k));
+          var shareS = data.sum>0 ? Math.round(expectedTotal * (data.nS/data.sum)) : 0;
+          var shareR = data.sum>0 ? Math.round(expectedTotal * (data.nR/data.sum)) : 0;
+          var ei = document.getElementById('expectedInterestAmount'); if(ei) ei.value = faFormatInt(expectedTotal);
+          var eiS = document.getElementById('expectedInterestSara'); if(eiS) eiS.value = faFormatInt(shareS);
+          var eiR = document.getElementById('expectedInterestReza'); if(eiR) eiR.value = faFormatInt(shareR);
+        }catch{}
+      }
+      function attach(el, wordsEl){ if(!el) return; el.addEventListener('input', function(){ try{
+          var raw = toAscii(el.value).replace(/[^0-9]/g,'');
+          raw = raw.replace(/^0+(?!$)/,'');
+          if(raw===''){ el.value=''; if(wordsEl) wordsEl.textContent=''; return; }
+          el.value = faFormatInt(raw);
+          var n = parseInt(raw,10)||0;
+          var words = (window.num2fa ? window.num2fa(n) : num2faLite(n));
+          if(wordsEl) wordsEl.textContent = words ? (words + ' تومان') : '';
+          updateTotalFromSplit();
+          updateExpectedShares();
+        }catch{} }); }
+      function init(){
+        attach(document.getElementById('principalSaraInput'), document.getElementById('principalSaraWords'));
+        attach(document.getElementById('principalRezaInput'), document.getElementById('principalRezaWords'));
+        // Initial sync
+        updateTotalFromSplit();
+        updateExpectedShares();
+        setJointShareLabels();
+        // Listen to rate/period/mode changes to recompute shares
+        var rateEl = document.getElementById('rateMonthlyPct');
+        var everyEl = document.getElementById('interestEveryMonths');
+        var modeEl = document.getElementById('interestPayoutMode');
+        var annEl = document.getElementById('rateAnnualPct');
+        if(rateEl) ['input','change','blur','keyup'].forEach(function(e){ rateEl.addEventListener(e, updateExpectedShares); });
+        if(annEl) ['input','change','blur','keyup'].forEach(function(e){ annEl.addEventListener(e, updateExpectedShares); });
+        if(everyEl) ['input','change','blur','keyup'].forEach(function(e){ everyEl.addEventListener(e, updateExpectedShares); });
+        if(modeEl) ['change','input','click'].forEach(function(e){ modeEl.addEventListener(e, function(){ updateExpectedShares(); setJointShareLabels(); }); });
+        // Avoid listening to principalInput changes to prevent feedback loops
+      }
+      if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', init); } else { init(); }
+    })();
+  </script>
+  <script>
+    // Initialize weekly auto-backup (Friday morning) and update hint
+    (function(){
+      function getData(){
+        const s = window.state || {};
+        return {
+          loans: Array.isArray(s.loans) ? s.loans : [],
+          payments: Array.isArray(s.pays) ? s.pays : [],
+          version: '1',
+          exportedAt: new Date().toISOString()
+        };
+      }
+      function safeInit(){
+        if(window.Backup && typeof window.Backup.initScheduler === 'function'){
+          window.Backup.initScheduler(getData);
+        }
+      }
+      if(document.readyState === 'loading'){
+        document.addEventListener('DOMContentLoaded', safeInit);
+      }else{ safeInit(); }
+    })();
+  </script>
+  <script>
+    (function(){
+      const adv = document.getElementById('advancedCloudControls');
+      const btn = document.getElementById('advToggle');
+      if(btn && adv){
+        btn.addEventListener('click', function(){
+          const vis = adv.style.display !== 'none';
+          adv.style.display = vis? 'none' : 'block';
+          btn.setAttribute('aria-expanded', String(!vis));
+        });
+      }
+      try{
+        const q = new URLSearchParams(location.search);
+        if(q.get('debug')==='1' && adv){ adv.style.display = 'block'; btn?.setAttribute('aria-expanded','true'); }
+      }catch{}
+      // Backup card lock logic with 10-minute expiry (session-based)
+      const controls = document.getElementById('backupControls');
+      const lockBtn = document.getElementById('backupLockBtn');
+      const KEY_TS = 'dk_backup_unlocked_at';
+      const EXP_MS = 10*60*1000; // 10 minutes
+      let hideTimer = null;
+      function setLockIcon(unlocked){ if(lockBtn) lockBtn.textContent = unlocked? '🔓' : '🔒'; }
+      function showControls(){ if(controls) controls.style.display=''; setLockIcon(true); }
+      function hideControls(){ if(controls) controls.style.display='none'; setLockIcon(false); }
+      function scheduleHide(remaining){
+        if(hideTimer) clearTimeout(hideTimer);
+        hideTimer = setTimeout(()=>{ try{ sessionStorage.removeItem(KEY_TS); }catch{} hideControls(); }, Math.max(0, remaining));
+      }
+      // On load: if within 10 minutes from last unlock, keep visible and schedule auto-hide
+      try{
+        const ts = Number(sessionStorage.getItem(KEY_TS)||'0');
+        if(ts){
+          const elapsed = Date.now() - ts;
+          if(elapsed < EXP_MS){ showControls(); scheduleHide(EXP_MS - elapsed); }
+          else{ sessionStorage.removeItem(KEY_TS); hideControls(); }
+        }
+        else{ hideControls(); }
+      }catch{}
+      if(lockBtn){
+        // Capture-mode: always open custom modal and stop any stale prompt listeners
+        lockBtn.addEventListener('click', (ev)=>{
+          const visible = controls && controls.style.display !== 'none';
+          if(!visible){ ev.stopImmediatePropagation(); ev.preventDefault(); openModal(); }
+        }, { capture:true });
+        // Normal bubbling: when visible -> lock/hide
+        lockBtn.addEventListener('click', ()=>{
+          const visible = controls && controls.style.display !== 'none';
+          if(visible){ try{ sessionStorage.removeItem(KEY_TS); }catch{} hideControls(); }
+        });
+      }
+      // Password modal helpers
+      const modal = document.getElementById('backupPwdModal');
+      const inp = document.getElementById('backupPwdInput');
+      const ok = document.getElementById('backupPwdOk');
+      const cancel = document.getElementById('backupPwdCancel');
+      const eye = document.getElementById('backupPwdEye');
+      const err = document.getElementById('backupPwdErr');
+      function openModal(){ if(!modal) return; err.style.display='none'; inp.value=''; modal.style.display='flex'; setTimeout(()=> inp.focus(), 10); }
+      function closeModal(){ if(modal) modal.style.display='none'; }
+      function submitPwd(){
+        const val = (inp.value||'').trim();
+        if(val==='82161019'){
+          const now = Date.now();
+          try{ sessionStorage.setItem(KEY_TS, String(now)); }catch{}
+          showControls();
+          scheduleHide(EXP_MS);
+          closeModal();
+        }else{ err.style.display=''; }
+      }
+      eye?.addEventListener('click', ()=>{ inp.type = (inp.type==='password')? 'text':'password'; });
+      ok?.addEventListener('click', submitPwd);
+      cancel?.addEventListener('click', closeModal);
+      inp?.addEventListener('keydown', (e)=>{ if(e.key==='Enter') submitPwd(); if(e.key==='Escape') closeModal(); });
+      modal?.addEventListener('click', (e)=>{ if(e.target===modal){ e.stopPropagation(); /* keep open */ } });
+    })();
+  </script>
+</body>
+</html>
