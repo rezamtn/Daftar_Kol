@@ -1,0 +1,766 @@
+@charset "UTF-8";
+
+/* ---------------- Auth visibility gates ---------------- */
+body.authed #protectedApp{ display:block !important }
+body.authed #authControls [data-when="out"]{ display:none !important }
+body.authed #authControls [data-when="in"]{ display:flex !important; gap:8px; align-items:center }
+body.logged-out #protectedApp{ display:none !important }
+body.logged-out #authControls [data-when="out"]{ display:flex !important }
+body.logged-out #authControls [data-when="in"]{ display:none !important }
+
+:root{
+  --bg:#0b1220; --card:#111a2b; --ink:#e5ecff; --muted:#9bb1d6; --line:#25324a; --good:#22c55e; --bad:#ef4444; --warn:#f59e0b;
+  /* accents */
+  --purple:#a78bfa; /* violet-400 */
+  --purple-dark:#6d28d9; /* violet-700 for borders */
+  --radius:14px;
+}
+*{box-sizing:border-box}
+html,body{margin:0; background:var(--bg); color:var(--ink); font:16px/1.6 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif}
+
+/* ---------------- Logged-out layout ---------------- */
+body.logged-out .wrap{
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+}
+body.logged-out #protectedApp{ display:none !important }
+body.logged-out #todayBanner{ display:none !important }
+body.logged-out .cal-card{ display:none !important }
+body.logged-out .head-top{ flex-direction:column; align-items:center; justify-content:center; gap:10px }
+body.logged-out .head-meta{ margin-top:0; text-align:center }
+body.logged-out #authControls{ display:block; width:100%; }
+body.logged-out #authControls [data-when="out"]{
+  display:flex !important; flex-direction:column !important; align-items:stretch !important; gap:10px !important;
+  width:100%; max-width:380px; margin:12px auto 0;
+  padding:18px 16px; border-radius:14px; position:relative;
+  background: linear-gradient(180deg, rgba(20,33,58,.75), rgba(16,24,44,.65));
+  border: 1px solid rgba(96,165,250,.25);
+  box-shadow: 0 18px 40px rgba(0,0,0,.45), 0 0 0 1px rgba(148,163,184,.10) inset;
+  backdrop-filter: blur(6px);
+}
+body.logged-out #authControls [data-when="out"]::before{
+  content:""; position:absolute; inset:0; border-radius:14px;
+  background: radial-gradient(120% 60% at 50% -10%, rgba(96,165,250,.18), transparent 60%),
+              radial-gradient(100% 50% at 50% 120%, rgba(167,139,250,.12), transparent 60%);
+  pointer-events:none;
+}
+body.logged-out #authControls [data-when="out"] input,
+body.logged-out #authControls [data-when="out"] button{
+  width:100%; text-align:center;
+}
+body.logged-out #authControls [data-when="out"] input{
+  height:38px; border-radius:10px; border:1px solid rgba(148,163,184,.28);
+  background: rgba(20,33,58,.85);
+  color:var(--ink);
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+body.logged-out #authControls [data-when="out"] input::placeholder{ color: #9bb1d6; opacity:.8 }
+body.logged-out #authControls [data-when="out"] input:focus{
+  outline:none; border-color:#60a5fa; box-shadow:0 0 0 3px rgba(96,165,250,.25);
+}
+/* Purple→Blue gradient button */
+body.logged-out #authControls [data-when="out"] #btnLogin{
+  height:38px; border-radius:10px; border:1px solid rgba(99,102,241,.9); /* indigo */
+  background: linear-gradient(180deg, #7c3aed, #2563eb);
+  color:#e8f0ff; font-weight:800;
+  letter-spacing:.3px;
+  box-shadow: 0 12px 30px rgba(124,58,237,.35), 0 0 0 1px rgba(124,58,237,.45) inset;
+}
+body.logged-out #authControls [data-when="out"] #btnLogin:hover{ filter:none; background: linear-gradient(180deg, #6d28d9, #1d4ed8); }
+body.logged-out #authControls [data-when="out"] #btnLogin:active{ transform: translateY(1px); }
+body.logged-out #authControls [data-when="out"] small.helper{ color:#9bb1d6; text-align:center; }
+body.logged-out .head{ --logo-size: 64px; }
+body.logged-out .sub{ margin:6px 0 0 }
+
+/* subtle appear animation */
+@keyframes fadeUp {
+  from { opacity:0; transform: translateY(6px); }
+  to   { opacity:1; transform: translateY(0); }
+}
+body.logged-out #authControls [data-when="out"]{ animation: fadeUp .28s ease-out both }
+
+/* header gentle animation in logged-out */
+@keyframes headFloatIn {
+  from { opacity:.0; transform: translateY(-6px) scale(.98); }
+  to   { opacity:1; transform: translateY(0) scale(1); }
+}
+body.logged-out .head-meta h1{ animation: headFloatIn .35s ease-out both }
+body.logged-out .head-meta .sub{ animation: headFloatIn .45s ease-out .05s both }
+
+/* Icon inside input (emoji) */
+.icon-input{ position:relative }
+.icon-input .icon{
+  position:absolute; inset-inline-start:10px; top:50%; transform:translateY(-50%);
+  pointer-events:none; filter: drop-shadow(0 1px 0 rgba(0,0,0,.25));
+}
+.icon-input input{ padding-inline-start:34px !important; }
+
+/* --- Joint creditor rows visibility --- */
+/* Hidden by default */
+#jointPrincipalFields,
+#jointInterestFields{ display:none }
+body.joint-mode #jointPrincipalFields,
+body.joint-mode #jointInterestFields{ display:flex !important }
+
+/* Fallback: if browser supports :has, show when select has value "joint" even without JS class */
+form#loanForm:has(#creditorPreset option:checked[value="joint"]) #jointPrincipalFields,
+form#loanForm:has(#creditorPreset option:checked[value="joint"]) #jointInterestFields{ display:flex !important }
+
+/* Editing state highlight */
+.form{padding:8px 10px}
+.form.editing {
+  border: 2px solid var(--warn); /* orange, thicker */
+  box-shadow: 0 0 0 4px rgba(245,158,11,0.4), 0 10px 28px rgba(0,0,0,0.4);
+  border-radius: 12px;
+  transition: box-shadow .2s ease, border-color .2s ease;
+  padding:12px; /* add inner spacing so content doesn't stick to border */
+}
+.form.editing .actions .btn {
+  border-color: var(--warn);
+}
+
+.wrap{max-width:1100px; margin:24px auto; padding:20px}
+.head{ --logo-size: 56px; }
+.head h1{margin:0}
+.head h1{display:flex; align-items:center; gap:8px}
+.app-logo{display:inline-flex; align-items:center}
+.app-logo svg, .app-logo-img{display:block; border-radius:4px; transition: transform .18s ease, filter .18s ease; width:var(--logo-size); height:var(--logo-size)}
+.app-logo svg{filter: drop-shadow(0 2px 8px rgba(79,140,255,.25))}
+.app-logo:hover svg, .app-logo:hover .app-logo-img{transform: translateY(-1px) scale(1.06); filter: drop-shadow(0 6px 14px rgba(79,140,255,.35))}
+.app-logo:focus-within svg, .app-logo:focus-within .app-logo-img{transform: translateY(-1px) scale(1.06); filter: drop-shadow(0 6px 14px rgba(79,140,255,.35))}
+@media (prefers-reduced-motion: reduce){
+  .app-logo svg, .app-logo-img{transition:none}
+}
+.sub{color:var(--muted); margin:4px 0 8px}
+
+/* Header top row: title and date aligned on one line */
+.head-top{display:flex; align-items:flex-start; justify-content:flex-start; gap:16px}
+#todayBanner{display:block; width:max-content; margin-right:auto}
+.head-meta{margin-top:14px}
+#todayBanner{display:block; width:max-content; margin-right:auto}
+
+.card{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:16px; margin-top:14px; box-shadow: 0 6px 24px rgba(0,0,0,.25)}
+.card:hover{box-shadow: 0 10px 30px rgba(0,0,0,.32)}
+.table-toolbar{display:flex; align-items:center; justify-content:flex-start; gap:10px; margin:6px 0 10px}
+.form .row{display:flex; gap:10px; flex-wrap:wrap}
+.form label{display:flex; flex-direction:column; gap:6px; min-width:180px; flex:1}
+.form label{position:relative}
+.form input, .form select, .form textarea{background:#14213a; color:var(--ink); border:1px solid var(--line); border-radius:10px; padding:10px 12px}
+.form input.display-only{pointer-events:none; caret-color:transparent}
+.form input::placeholder, .form textarea::placeholder{color:var(--muted); opacity:.75}
+.form input:focus, .form select:focus, .form textarea:focus{outline:none; border-color:#3b82f6; box-shadow:0 0 0 3px rgba(59,130,246,.25)}
+.form label > span{font-weight:600}
+.form textarea{resize:vertical}
+.grow{flex-basis:100%}
+
+/* Green flash for newly added row */
+@keyframes flashGreen {
+  0% { background: rgba(34,197,94,0.25); }
+  100% { background: transparent; }
+}
+tr.flash-success { animation: flashGreen 2s ease-out 1; }
+.form .actions{display:flex; gap:12px; margin-top:14px}
+.btn{background:#16233a; color:var(--ink); border:1px solid var(--line); padding:8px 12px; border-radius:10px; cursor:pointer}
+.btn:hover{filter:brightness(1.07)}
+.btn:active{transform:translateY(1px)}
+.btn.ghost{background:transparent}
+.btn.small{padding:6px 10px; font-size:12px}
+.btn.edit{background:rgba(79,140,255,.12); color:#bcd0ff; border-color:rgba(79,140,255,.35)}
+.btn.danger{background:rgba(239,68,68,.12); color:#fecaca; border-color:rgba(239,68,68,.35)}
+.btn.small:hover{filter:brightness(1.1)}
+
+/* Prominent resolve (رسیدگی) button with stacked icon */
+.btn.resolve,
+.btn.small[data-act="resolve"],
+.btn.small[data-act="p-resolve"]{
+  display:inline-flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:2px; padding:6px 10px; border-radius:10px;
+  background: rgba(245,158,11,.14); color: #ffe0a6; border:1px solid rgba(245,158,11,.45);
+  box-shadow: 0 6px 18px rgba(0,0,0,.25), 0 0 0 1px rgba(245,158,11,.25) inset;
+  font-weight: 800; line-height:1.05;
+}
+.btn.resolve .ico{ line-height:1; font-size:14px; display:block; }
+.btn.resolve:hover,
+.btn.small[data-act="resolve"]:hover,
+.btn.small[data-act="p-resolve"]:hover{ background: rgba(245,158,11,.2); border-color: rgba(245,158,11,.55); }
+.btn.resolve:active,
+.btn.small[data-act="resolve"]:active,
+.btn.small[data-act="p-resolve"]:active{ transform: translateY(1px); }
+
+/* Input suffix utility (e.g., percent sign) */
+.input-suffix{position:absolute; inset-inline-end:14px; top:50%; transform:translateY(-50%); color:var(--muted); pointer-events:none; font-size:12px; z-index:1}
+.form input.suffix-pct{padding-inline-end:28px}
+/* primary emphasis for main actions */
+#submitLoanBtn, #submitPayBtn{background:#2563eb; border-color:#1d4ed8}
+#submitLoanBtn:hover, #submitPayBtn:hover{filter:none; background:#1d4ed8}
+.table-wrap{overflow:auto; border:1px solid var(--line); border-radius:10px; max-height: 60vh}
+#loansTable, #paymentsTable{width:100%; border-collapse:collapse}
+#archiveTable{width:100%; border-collapse:separate; border-spacing:0}
+#loansTable th, #loansTable td, #paymentsTable th, #paymentsTable td{padding:10px 12px; border-bottom:1px solid #1b2335; text-align:center}
+#loansTable thead, #paymentsTable thead, #archiveTable thead{background:#0f172a; position:sticky; top:0; z-index:2; box-shadow: 0 2px 0 rgba(0,0,0,.25)}
+#loansTable tbody tr:nth-child(odd), #paymentsTable tbody tr:nth-child(odd){background:rgba(255,255,255,.02)}
+#loansTable tbody tr:hover, #paymentsTable tbody tr:hover{background:rgba(79,140,255,.08)}
+.table-wrap #archiveTable tbody tr{background:rgba(255,255,255,.02)}
+.table-wrap #archiveTable tbody tr:hover{background:rgba(79,140,255,.08)}
+
+/* ---- Loans table visual polish (CSS-only; no DOM changes) ---- */
+/* Header: subtle gradient + sticky with backdrop for readability while scrolling */
+#loansTable thead th{
+  background: linear-gradient(180deg, rgba(20,31,52,.95), rgba(15,23,42,.95));
+  backdrop-filter: blur(2px);
+  position: sticky; top: 0; z-index: 3;
+  font-weight: 700; color: #cfe5ff; letter-spacing: .2px;
+}
+
+/* Vertical alignment and compact numeric look */
+#loansTable td{ vertical-align: middle; }
+#loansTable td, #loansTable th{ font-variant-numeric: tabular-nums; }
+
+/* Hint: keep important numeric/date columns on one line; allow notes to wrap softly */
+/* 1: Creditor | 2: Borrower | 3: Start | 4: Principal | 5: Monthly | 6: Months | 7: Payout | 8: Expected | 9: Balance | 10: Repay | 11: Notes | 12: Ops */
+#loansTable td:nth-child(3),
+#loansTable td:nth-child(4),
+#loansTable td:nth-child(5),
+#loansTable td:nth-child(6),
+#loansTable td:nth-child(7),
+#loansTable td:nth-child(8),
+#loansTable td:nth-child(9),
+#loansTable td:nth-child(10){ white-space: nowrap; }
+
+/* Notes column: clamp and ellipsis for long text while preserving tooltip via title attribute provided by JS */
+#loansTable td:nth-child(11){
+  max-width: 280px; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Operations column: keep visible on horizontal scroll (sticky at the inline-start for RTL) */
+/* In RTL, the last column sits on the left visually; use left:0 to pin it. */
+#loansTable th:last-child, #loansTable td:last-child{
+  position: sticky; left: 0; z-index: 1;
+  background: linear-gradient(90deg, rgba(15,23,42,1) 70%, rgba(15,23,42,0));
+  box-shadow: -6px 0 12px rgba(0,0,0,.20);
+}
+
+/* Better layout for ops buttons in a single row on larger screens while keeping current structure */
+@media (min-width: 680px){
+  #loansTable td:last-child .ops{ flex-direction: row; gap: 8px; align-items: center; justify-content: center; }
+}
+
+/* Row hover accent: subtle glow ring */
+#loansTable tbody tr{
+  transition: background-color .15s ease, box-shadow .15s ease;
+}
+#loansTable tbody tr:hover{
+  box-shadow: inset 0 0 0 1px rgba(96,165,250,.20);
+}
+
+/* Buttons in ops: slightly more pronounced for clarity */
+#loansTable .btn.edit{ box-shadow: 0 4px 12px rgba(79,140,255,.20), 0 0 0 1px rgba(79,140,255,.25) inset; }
+#loansTable .btn.danger{ box-shadow: 0 4px 12px rgba(239,68,68,.20), 0 0 0 1px rgba(239,68,68,.25) inset; }
+
+/* Compact spacing on smaller screens while keeping tap targets adequate */
+@media (max-width: 768px){
+  #loansTable td:nth-child(11){ max-width: 200px; }
+}
+@media (max-width: 560px){
+  #loansTable td:nth-child(11){ max-width: 160px; }
+}
+
+/* ---- Density modes (Option A) ---- */
+/* Apply by adding .density-compact to body or the parent .card of the table */
+.density-compact #loansTable th,
+.density-compact #loansTable td{ padding: 7px 8px; }
+.density-compact #loansTable td,
+.density-compact #loansTable th{ font-size: 14px; }
+.density-compact #loansTable .btn.small{ padding:5px 8px; font-size:11.5px }
+.density-compact .table-wrap{ max-height: 70vh; }
+
+/* Optional per-card compact mode */
+.card.density-compact #loansTable th,
+.card.density-compact #loansTable td{ padding: 7px 8px; }
+.card.density-compact #loansTable td,
+.card.density-compact #loansTable th{ font-size: 14px; }
+.card.density-compact #loansTable .btn.small{ padding:5px 8px; font-size:11.5px }
+
+/* Slightly stronger zebra for compact mode to aid scanning */
+.density-compact #loansTable tbody tr:nth-child(odd){ background: rgba(255,255,255,.035); }
+
+/* ---- Enhanced badges (Option F) ---- */
+/* Improve contrast and clarity of badges used in tables */
+.badge{ border-width:1.2px }
+.badge.good{ background:rgba(34,197,94,.16); color:#bef8cf; border-color:rgba(34,197,94,.45) }
+.badge.warn{ background:rgba(245,158,11,.16); color:#ffe29e; border-color:rgba(245,158,11,.48) }
+.badge.bad{ background:rgba(239,68,68,.16); color:#ffc6c6; border-color:rgba(239,68,68,.48) }
+.badge.awaiting{ background:rgba(20,184,166,.18); color:#a5fff2; border-color:rgba(20,184,166,.50) }
+.badge.done{ background:rgba(167,139,250,.18); color:#efe1ff; border-color:rgba(167,139,250,.55); font-weight:800 }
+
+/* Archive table specific polish */
+#archiveTable th, #archiveTable td{padding:10px 12px; border-bottom:1px solid #1b2335; text-align:center}
+
+/* ---- Loans Cards View ---- */
+.cards-grid{
+  /* switch to flex so opening one card doesn't stretch siblings */
+  display:flex; flex-wrap:wrap; gap:12px; margin-top:10px;
+  align-items: flex-start; /* prevent equal-height stretching per row */
+}
+.cards-grid > .loan-card{ flex:0 0 calc((100% - 24px)/3); height:auto; }
+@media (max-width: 980px){ .cards-grid > .loan-card{ flex-basis: calc((100% - 12px)/2); } }
+@media (max-width: 640px){ .cards-grid > .loan-card{ flex-basis: 100%; } }
+
+.loan-card{
+  background:#0f172a; border:1px solid #22304a; border-radius:12px; padding:12px; position:relative;
+  box-shadow: 0 10px 24px rgba(0,0,0,.28);
+  cursor:pointer; transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+  display:flex; flex-direction:column; /* keep footer inside and align heights */
+}
+.loan-card:hover{ transform: translateY(-1px); box-shadow: 0 14px 34px rgba(0,0,0,.35); border-color:#2c3a56; }
+.loan-card .lc-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:8px; margin-bottom:8px }
+.loan-card .lc-title{ font-weight:800; color:#e5ecff }
+.loan-card .lc-sub{ color:var(--muted); font-size:12px }
+.loan-card .lc-body{ display:grid; grid-template-columns: 1fr 1fr; gap:8px 12px; }
+.loan-card .lc-item{ background:#101c34; border:1px solid #22304a; border-radius:10px; padding:8px; font-size:11px }
+.loan-card .lc-item .lbl{ display:block; color:#9bb1d6; font-size:11px; margin-bottom:4px }
+.loan-card .lc-item .val{ font-weight:700 }
+.loan-card .lc-foot{ display:flex; align-items:center; justify-content:flex-end; gap:8px; margin-top:10px }
+.loan-card .lc-foot .btn.small{ pointer-events:auto; font-size:13px; padding:7px 12px }
+/* In v2 card we place badges in the status row; prevent absolute positioning */
+.loan-card .badge{ position:static; top:auto; inset:auto; }
+.loan-card .status-badges .badge{ position:static !important; }
+
+/* Ensure inner content does not overflow card edges */
+.loan-card{ overflow:hidden; }
+
+/* --- Card view v2 (details-style like the screenshot) --- */
+.loan-card.lc-v2{ border-color: var(--purple-dark); }
+.loan-card.lc-v2::before{
+  content:""; position:absolute; inset:0; border-radius:12px; pointer-events:none;
+  box-shadow: 0 0 0 1px rgba(167,139,250,.25) inset, 0 16px 40px rgba(0,0,0,.35);
+}
+.loan-card .lc-title-center{
+  text-align:center; font-weight:800; color:var(--purple); margin:0 0 8px; font-size:14px;
+}
+.loan-card .lc-info{
+  display:grid; grid-template-columns: 120px 1fr; gap:8px 12px; position:relative;
+  background:linear-gradient(180deg,#0f172a,#101b31); border:1px solid #22304a; border-radius:10px; padding:10px;
+  flex:1; /* fill available height so footer sticks to bottom */
+  overflow:hidden;
+  font-size:14px; /* 2 units smaller than base (16->14) for internal card content */
+}
+.loan-card .lc-info .extra-row{
+  /* keep in flow to allow animation */
+  display:block;
+  max-height:0; opacity:0; overflow:hidden;
+  padding-top:0; padding-bottom:0; /* collapse space when hidden */
+  transition: max-height .28s ease, opacity .22s ease, padding .22s ease;
+}
+.loan-card.details-open .lc-info .extra-row{
+  max-height:140px; opacity:1;
+  padding-top:4px; padding-bottom:4px;
+}
+@media (prefers-reduced-motion: reduce){
+  .loan-card .lc-info .extra-row{ transition:none }
+}
+.loan-card .lc-info > div{ padding:4px 0; }
+.loan-card .lc-info > div:nth-child(2n+1){ text-align:right; color:#9bb1d6; }
+.loan-card .lc-info > div:nth-child(2n){ font-weight:700; min-width:0; overflow-wrap:anywhere; word-break:break-word; }
+.loan-card .lc-info .val.status-badges{ font-weight:400; }
+.loan-card .lc-info::before{
+  content:""; position:absolute; top:10px; bottom:10px; inset-inline-start:120px; width:1px; background:#1b2335; border-radius:1px;
+}
+.loan-card.lc-v2 .lc-foot{ margin-top:10px; display:flex; justify-content:flex-end; gap:8px }
+
+@media (max-width:560px){
+  .loan-card .lc-info{ grid-template-columns: 1fr; }
+  .loan-card .lc-info::before{ display:none }
+}
+
+/* Category color ring */
+.loan-card[data-cat="overdue"]{ box-shadow: 0 0 0 2px rgba(239,68,68,.35) inset; }
+.loan-card[data-cat="awaiting"]{ box-shadow: 0 0 0 2px rgba(245,158,11,.30) inset; }
+.loan-card[data-cat="zero"]{ box-shadow: 0 0 0 2px rgba(167,139,250,.28) inset; }
+
+/* Advanced controls (backup card) */
+#advToggle.btn.small{padding:6px 10px; font-size:12px}
+#advancedCloudControls{background:rgba(255,255,255,.02); border:1px solid var(--line); border-radius:10px; padding:10px;}
+#advancedCloudControls .small{display:block; margin-bottom:8px}
+#advancedCloudControls .btn{padding:6px 10px; font-size:12px}
+#advancedCloudControls .btn.ghost{background:transparent}
+
+/* Normalize backup primary buttons (label vs button) */
+label.btn{display:inline-flex; align-items:center; justify-content:center; gap:6px; cursor:pointer; vertical-align:middle}
+label.btn.small{padding:6px 10px; font-size:12px; line-height:1}
+button.btn.small{padding:6px 10px; font-size:12px; line-height:1}
+label.btn.ghost, button.btn.ghost{background:transparent}
+label.btn, button.btn{min-height:30px; border-radius:10px}
+
+/* Last backup hint status colors */
+#lastBackupHint{display:block; color:var(--muted)}
+#lastBackupHint.ok{color:#22c55e}       /* green-500 */
+#lastBackupHint.stale{color:#f43f5e}    /* rose-500 */
+#archiveTable td:nth-child(1), #archiveTable th:nth-child(1){text-align:right}
+#archiveTable td:nth-child(2), #archiveTable th:nth-child(2){text-align:right}
+#archiveTable td:nth-child(3), #archiveTable th:nth-child(3){white-space:nowrap}
+#archiveTable td:nth-child(4) .badge{display:inline-block; margin:0 auto}
+#archiveTable td:nth-child(5){width:1%; white-space:nowrap}
+#archiveTable .ops{flex-direction:row; gap:8px; align-items:center}
+
+/* Slightly tighter look for archive header */
+#archiveTable thead th{font-weight:600; font-size:14px}
+.closed{opacity:.6}
+.ops{display:flex; flex-direction:column; gap:6px; align-items:flex-start}
+
+/* Payments grouping */
+tr.pay-group > td{padding:0; border-bottom:none}
+.group-head{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 12px; background:#0f1729; border:1px solid #22304a; border-radius:12px; margin:10px 8px 6px}
+.group-head .gh-left{display:flex; flex-direction:column}
+.group-head .gh-borrower{font-weight:800; color:#e5ecff}
+.group-head .gh-cred{color:var(--muted)}
+.group-head .gh-toggle{background:transparent; color:#bcd0ff; border:1px solid #22304a; border-radius:8px; padding:2px 6px; cursor:pointer}
+.group-head .gh-toggle.open{color:#e9d5ff; border-color:#334155}
+.group-head .gh-mid{display:flex; flex-direction:column; align-items:center; gap:6px}
+tr.pay-child td{background:transparent; border-bottom:1px dashed #1b2335}
+tr.pay-child:last-of-type td{border-bottom:1px solid #1b2335}
+.badge{display:inline-block; padding:2px 8px; border-radius:999px; border:1px solid var(--line); background:#14213a}
+.badge.good{background:rgba(34,197,94,.12); color:#bbf7d0; border-color:rgba(34,197,94,.35)}
+.badge.warn{background:rgba(245,158,11,.12); color:#fde68a; border-color:rgba(245,158,11,.35)}
+.badge.bad{background:rgba(239,68,68,.12); color:#fecaca; border-color:rgba(239,68,68,.35)}
+.badge.awaiting{background:rgba(20,184,166,.14); color:#99f6e4; border-color:rgba(20,184,166,.45)}
+.badge.done{background:rgba(167,139,250,.14); color:#e9d5ff; border-color:rgba(167,139,250,.45); font-weight:600}
+.small{font-size:12px; color:var(--muted)}
+
+/* Payment filters toolbar */
+.pay-filters{
+  display:flex; align-items:flex-end; gap:10px;
+  padding:10px 12px; margin:10px 0 20px;
+  background:#0f172a; border:1px solid var(--line); border-radius:12px;
+  box-shadow: 0 6px 20px rgba(0,0,0,.25);
+  white-space:nowrap; overflow:auto; flex-wrap:nowrap;
+}
+.pay-filters label{display:flex; flex-direction:column; gap:6px; flex:0 0 auto; min-width:120px}
+.pay-filters label:not(:has(small))::after{ content:""; display:block; min-height:18px; margin-top:4px }
+.pay-filters input, .pay-filters select{background:#14213a; color:var(--ink); border:1px solid var(--line); border-radius:10px; padding:8px 10px; height:36px}
+.pay-filters #payFilterBorrower{width:180px}
+.pay-filters #payFilterFrom, .pay-filters #payFilterTo{width:140px}
+.pay-filters .btn.small{
+  height:36px; flex:0 0 auto;
+  padding:8px 10px; line-height:20px;
+  display:inline-flex; align-items:center; justify-content:center;
+}
+.pay-filters > #payFilterClear{
+  align-self:flex-start; /* align with top like labels */
+  margin-top: 28px;      /* approximate label title + gap to line up with input top */
+}
+
+/* Keep in a single row even on smaller widths; rely on horizontal scroll */
+
+/* Overdue tag (rectangular) */
+.overdue-tag{
+  display:inline; /* plain text-like */
+  padding:0; border-radius:0;
+  background:transparent; color:rgba(239,68,68,.80);
+  border:none;
+  font-weight:600; font-size:12px; line-height:1; white-space:nowrap;
+  box-shadow:none; text-shadow:none; cursor:default; user-select:none;
+}
+.overdue-tag::before{ content: none }
+
+/* Archive stamp style */
+.stamp-arch{
+  display:inline-block; padding:6px 12px; border:2px solid #ef4444; color:#ef4444;
+  font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.5px;
+  border-radius:6px; background:rgba(239,68,68,.1);
+  box-shadow:0 0 0 1px rgba(239,68,68,.3) inset;
+  transform: rotate(-10deg);
+  transform-origin:center;
+  user-select:none;
+  /* stronger stamp shadows */
+  filter: drop-shadow(0 3px 0 rgba(239,68,68,.25)) drop-shadow(0 8px 16px rgba(0,0,0,.45));
+  position:relative;
+}
+.stamp-arch::after{
+  content:""; position:absolute; inset:0; pointer-events:none; border-radius:6px;
+  /* subtle grainy stripes like a real stamp */
+  background:
+    repeating-linear-gradient(45deg, rgba(239,68,68,.08) 0 6px, transparent 6px 12px),
+    repeating-linear-gradient(-45deg, rgba(239,68,68,.06) 0 5px, transparent 5px 10px);
+  mix-blend-mode: multiply; opacity:.5;
+}
+
+/* Center inline badges within the small info column under duration */
+.small .badge{display:inline-block; margin:0 auto}
+.mini-progress.remain{margin-top:4px}
+
+/* Rate lines under monthly rate */
+.rate-line{display:block; line-height:1.3}
+.rate-line .rate-icon{margin-inline-end:6px; opacity:.9}
+.rate-line.nominal{color:#9bb1d6}
+.rate-line.effective{color:#7bd89e}
+
+/* Headings */
+.card > h2{margin:0 0 12px; font-size:18px}
+
+/* Summary bars */
+.summary{display:flex; gap:10px; flex-wrap:wrap; margin:6px 0}
+.summary[aria-label="خلاصه وضعیت"] .sum-item:nth-child(1){flex:1 1 32%}
+.summary[aria-label="خلاصه وضعیت"] .sum-item:nth-child(2){flex:2 1 66%}
+@media (max-width: 800px){
+  .summary[aria-label="خلاصه وضعیت"] .sum-item:nth-child(1),
+  .summary[aria-label="خلاصه وضعیت"] .sum-item:nth-child(2){flex:1 1 100%}
+}
+.sum-item{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; flex:1; min-width:220px}
+.sum-item.wide{flex-basis:100%}
+.sum-label{color:var(--muted); font-size:12px; margin-bottom:6px}
+.sum-value{font-weight:700; font-size:18px}
+.sum-list{display:flex; gap:8px; flex-wrap:wrap}
+.sum-item .sum-list.small{gap:6px; margin-top:8px; flex-wrap:nowrap; overflow:auto}
+.sum-chip{background:#14213a; color:#a9b7d6; border:1px solid rgba(148,163,184,.28); border-radius:999px; padding:6px 12px; white-space:nowrap; cursor:pointer; user-select:none; transition: filter .15s ease, background .15s ease, color .15s ease, box-shadow .15s ease, border-color .15s ease, padding .15s ease; position:relative}
+.sum-chip:hover{filter:brightness(1.08)}
+.sum-chip.disabled{opacity:.45; filter:none; cursor:default}
+.sum-chip.disabled:hover{filter:none}
+.sum-chip.active{
+  background: rgba(59,130,246,.22);
+  border-color: #60a5fa;
+  color:#e0f2fe;
+  font-weight:700;
+  box-shadow:
+    0 0 0 3px rgba(59,130,246,.28) inset,
+    0 2px 10px rgba(59,130,246,.22);
+  padding-inline-start: 26px; /* leave room for check icon at start (RTL aware) */
+}
+.sum-chip.active::before{
+  content: '✓';
+  position:absolute;
+  inset-inline-start: 8px;
+  top: 50%; transform: translateY(-50%);
+  color:#22c55e; /* green tick */
+  font-weight:900; font-size:12px;
+}
+.sum-chip:focus-visible{outline:none; box-shadow:0 0 0 3px rgba(59,130,246,.45)}
+
+/* Status badges container in cards */
+.status-badges{
+  /* two-row layout: row1 badges, row2 (optional) button */
+  display:grid; grid-template-columns: 1fr; row-gap:6px; align-items:start;
+  justify-items:start; /* default: align with value column */
+  line-height:1.2; min-height:24px; overflow:hidden;
+}
+.status-badges:has(.btn){ justify-items:center; }
+.status-badges .badges-left{
+  display:flex; flex-wrap:wrap; gap:4px; align-items:center; min-width:0; width:100%;
+  justify-content:flex-start; /* align with rows when no button */
+}
+.status-badges:has(.btn) .badges-left{ justify-content:center; }
+.status-badges .badge{
+  margin:0; flex-shrink:0; font-size:12px; padding:3px 8px;
+  border-radius:4px; line-height:1.3;
+}
+.status-badges .btn{
+  margin:0; font-size:10px; padding:3px 8px; /* second row, centered by grid */
+  min-height:auto; height:auto;
+}
+
+/* Center the resolve button exactly under its paired badge */
+.badge-stack{
+  display:inline-grid;
+  grid-auto-flow: row;
+  row-gap:6px; /* match .status-badges row-gap for consistent spacing */
+  place-items:center; /* exact center alignment both axes */
+  vertical-align:middle;
+  text-align:center;
+}
+.badge-stack > .badge{ margin:0 !important; display:inline-flex; align-items:center; justify-content:center; }
+.badge-stack .stack-btn{ display:block; width:auto; margin-top:0; }
+.badge-stack > *{ margin-left:auto; margin-right:auto; }
+.badge-stack .stack-btn .btn.resolve{ margin:0 auto; width:auto; justify-content:center; }
+
+/* When alignment script groups both badge and button inside .stack-btn, enforce spacing */
+.status-badges .stack-btn{
+  display:inline-flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:flex-start;
+  gap:6px !important; /* match .status-badges row-gap */
+}
+.status-badges .stack-btn > .badge{ display:inline-block; margin-bottom:0 !important; }
+.status-badges .stack-btn > .btn.resolve{ display:inline-flex; margin-top:6px !important; }
+
+/* Compact the resolve button only inside status row (horizontal, small) */
+.status-badges .btn.resolve{
+  flex-direction:row; gap:4px; padding:3px 10px; font-size:12px;
+  box-shadow:none; border-radius:8px;
+}
+.status-badges .btn.resolve .ico{ font-size:14px }
+
+/* Count badge inside chips */
+.sum-chip .badge{
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:18px; height:18px; padding:0 6px; border-radius:999px;
+  font-size:12px; font-weight:700; line-height:1; margin-inline-start:6px;
+  background:rgba(148,163,184,.2); color:#dbeafe; border:1px solid rgba(148,163,184,.35);
+}
+
+/* Themed chips by status for better recognition */
+.sum-chip[data-status="overdue"]{ background:rgba(239,68,68,.16); border-color:rgba(239,68,68,.45); color:#fecaca }
+.sum-chip[data-status="overdue"] .badge{ background:rgba(239,68,68,.25); border-color:rgba(239,68,68,.5); color:#fee2e2 }
+
+.sum-chip[data-status="awaiting"]{ background:rgba(245,158,11,.16); border-color:rgba(245,158,11,.45); color:#fde68a }
+.sum-chip[data-status="awaiting"] .badge{ background:rgba(245,158,11,.25); border-color:rgba(245,158,11,.5); color:#fff7d6 }
+
+.sum-chip[data-status="open"]{ background:rgba(59,130,246,.16); border-color:rgba(59,130,246,.45); color:#cfe5ff }
+.sum-chip[data-status="open"] .badge{ background:rgba(59,130,246,.25); border-color:rgba(59,130,246,.5); color:#e6f1ff }
+
+.sum-chip[data-status="zero"]{ background:rgba(167,139,250,.16); border-color:rgba(167,139,250,.45); color:#e9d5ff }
+.sum-chip[data-status="zero"] .badge{ background:rgba(167,139,250,.25); border-color:rgba(167,139,250,.5); color:#f5ecff }
+
+/* Calendar-style banner for today's date */
+.cal-card{display:inline-flex; flex-direction:column; align-items:center; user-select:none; border-radius:12px; overflow:hidden; border:1px solid var(--line); box-shadow:0 8px 24px rgba(0,0,0,.35)}
+.cal-top{background:linear-gradient(180deg,#ef4444,#dc2626); color:#fff; font-weight:800; letter-spacing:.5px; padding:6px 12px; width:100%; text-align:center}
+.cal-body{background:var(--card); padding:10px 16px; display:flex; flex-direction:column; align-items:center; gap:4px}
+.cal-day{font-size:34px; font-weight:800; line-height:1; color:#ffffff}
+.cal-en{opacity:.9}
+
+/* Sortable tables */
+th.sortable{cursor:pointer; user-select:none; position:relative}
+th.sortable:hover{background:#132036}
+th.sortable .sort-ind{margin-inline-start:6px; opacity:.7; font-size:11px}
+th.sort-asc .sort-ind::after{content:"▲"}
+th.sort-desc .sort-ind::after{content:"▼"}
+
+/* Mini progress bar for installments (unified: green border, yellow fill) */
+.mini-progress{height:6px; background:#0f172a; border:2px solid #15803d; border-radius:999px; overflow:hidden; margin-top:4px}
+/* always yellow fill to match card one style */
+.mini-progress > span{display:block; height:100%; background:var(--warn) !important}
+.mini-progress > span.low,.mini-progress > span.mid,.mini-progress > span.high{background:var(--warn) !important}
+
+/* Remaining installments bar — use same unified style */
+.mini-progress.remain{border-color:#15803d; background:#0f172a}
+.mini-progress.remain > span{background:var(--warn) !important}
+
+/* In cards make progress bars slimmer to fit neatly */
+.loan-card .mini-progress{ height:4px; border-width:1px; margin-top:2px }
+.loan-card .mini-progress.remain{ border-width:1px }
+
+/* ---------------- Responsive ---------------- */
+@media (max-width: 1024px){
+  .wrap{max-width:100%; padding:14px}
+}
+@media (max-width: 768px){
+  html,body{font-size:15px}
+  .wrap{padding:12px}
+  .card{padding:12px}
+  .form .row{gap:8px}
+  .form label{min-width:140px}
+  #loansTable th, #loansTable td, #paymentsTable th, #paymentsTable td{padding:8px 10px}
+  .ops{flex-direction:row; flex-wrap:wrap; gap:8px}
+  .table-wrap{max-height: 55vh}
+  .sum-item{min-width:160px}
+}
+@media (max-width: 560px){
+  html,body{font-size:14px}
+  .wrap{padding:10px}
+  .head h1{font-size:18px}
+  .card > h2{font-size:16px}
+  .form label{min-width:120px}
+  .form input, .form select, .form textarea{padding:9px 10px; font-size:14px}
+  .btn{padding:7px 10px; font-size:14px}
+  .btn.small{font-size:12px}
+  #loansTable th, #loansTable td, #paymentsTable th, #paymentsTable td{padding:7px 8px}
+  .table-wrap{max-height: 50vh}
+}
+@media (max-width: 400px){
+  .form label{min-width:100px}
+  .summary{gap:8px}
+  .sum-item{padding:10px}
+}
+
+/* ---------------- Modals (Persian confirm/prompt) ---------------- */
+.modal-wrap{position:fixed; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; z-index:9999}
+.modal{background:var(--card); color:var(--ink); border:1px solid var(--line); border-radius:12px; padding:16px; min-width:260px; max-width:90vw; box-shadow:0 20px 50px rgba(0,0,0,.5); direction:rtl}
+.modal-body{margin-bottom:12px}
+.modal-actions{display:flex; gap:8px; justify-content:flex-end}
+.modal-input{width:100%; background:#14213a; color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:8px 10px; margin-top:10px}
+
+/* Info modal (archive item card) */
+.modal.info{background:linear-gradient(180deg, #0f182b 0%, #111a2b 100%); border-color: var(--purple-dark); box-shadow: 0 24px 60px rgba(0,0,0,.55), 0 0 0 1px rgba(167,139,250,.08) inset}
+.modal.info{position:relative}
+.modal.info .modal-body{margin-bottom:10px}
+.info-title{margin:0 0 12px; text-align:center; font-size:16px; font-weight:700; color:var(--purple)}
+.info-body{display:grid; grid-template-columns: 140px 1fr; gap:8px 14px}
+.info-body > div{padding:6px 0; border-top:1px solid rgba(255,255,255,.06)}
+.info-body > div:nth-child(-n+2){border-top:none; padding-top:0}
+.muted{color:var(--muted)}
+
+@media (max-width:560px){
+  .info-body{grid-template-columns: 1fr;}
+  .info-body > div{border-top:none; padding:2px 0}
+}
+
+/* Flush left, zero-degree stamp for archive modal */
+.stamp-left{
+  position:absolute; top:6px; left:0; transform: rotate(0deg) scale(.70);
+  z-index:1; pointer-events:none;
+}
+/* Tweak visual weight and spacing for the pinned stamp so it doesn't cover content */
+.stamp-arch.stamp-left{
+  padding:3px 8px; border-width:1.5px;
+  background:rgba(239,68,68,.10); color:#ff7a7a; border-color:rgba(239,68,68,.65);
+  box-shadow:0 0 0 1px rgba(239,68,68,.25) inset;
+}
+
+/* Centered watermark (big, faint, diagonal) */
+.stamp-watermark{
+  position:absolute; top:50%; left:50%; transform: translate(-50%,-50%) rotate(-30deg) skewX(1.2deg) scale(1.6);
+  z-index:0; pointer-events:none; opacity:.45;
+  background:transparent; color: rgba(239,68,68,.75); border-color: rgba(239,68,68,.55);
+  /* Ink bleed + inner ghosting */
+  box-shadow:
+    0 0 0 2px rgba(239,68,68,.35) inset,
+    0 0 12px rgba(239,68,68,.18) inset,
+    0 2px 16px rgba(0,0,0,.25);
+  filter:none; /* normal blend for better visibility on dark bg */
+  padding:12px 22px; border-width:2.5px; white-space:nowrap;
+  border-radius:10px;
+  text-shadow:
+    0 0 2px rgba(239,68,68,.35),
+    0 0 6px rgba(239,68,68,.18);
+}
+
+/* Distressed/worn-out edges with grunge overlays */
+.stamp-watermark::before,
+.stamp-watermark::after{
+  content:""; position:absolute; inset:-6px; border-radius:12px; pointer-events:none;
+}
+.stamp-watermark::before{
+  /* random speckles/eroded border using masks */
+  background:
+    radial-gradient(6px 6px at 15% 35%, rgba(0,0,0,.35) 50%, transparent 52%),
+    radial-gradient(5px 5px at 80% 20%, rgba(0,0,0,.35) 50%, transparent 52%),
+    radial-gradient(4px 4px at 60% 75%, rgba(0,0,0,.35) 50%, transparent 52%),
+    radial-gradient(3px 3px at 30% 85%, rgba(0,0,0,.35) 50%, transparent 52%);
+  mix-blend-mode:multiply; opacity:.45;
+  -webkit-mask: linear-gradient(#000,#000); mask: linear-gradient(#000,#000);
+}
+.stamp-watermark::after{
+  /* ghost offset impression + extra grunge */
+  background:
+    repeating-linear-gradient(45deg, rgba(239,68,68,.10) 0 8px, transparent 8px 16px),
+    repeating-linear-gradient(-45deg, rgba(239,68,68,.08) 0 6px, transparent 6px 12px),
+    radial-gradient(120px 60px at 60% 40%, rgba(239,68,68,.12), transparent 60%);
+  mix-blend-mode:multiply; opacity:.45; border-radius:10px;
+  box-shadow:
+    2px 2px 0 rgba(239,68,68,.15), /* slight misprint offset */
+    -1px -1px 0 rgba(239,68,68,.10) inset;
+}
+
+/* Responsive tuning for watermark size */
+@media (max-width: 768px){
+  .stamp-watermark{ transform: translate(-50%,-50%) rotate(-30deg) scale(1.45); }
+}
+@media (max-width: 560px){
+  .stamp-watermark{ transform: translate(-50%,-50%) rotate(-30deg) scale(1.30); }
+}
+@media (max-width: 400px){
+  .stamp-watermark{ transform: translate(-50%,-50%) rotate(-30deg) scale(1.18); }
+}
