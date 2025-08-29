@@ -472,6 +472,12 @@ tr.pay-child:last-of-type td{border-bottom:1px solid #1b2335}
   border-color: rgba(167,139,250,.62) !important;
   color:#faf7ff !important;
 }
+/* Open status (good) — distinct blue accent */
+.loan-card .status-badges .badge.good{
+  background: linear-gradient(180deg, rgba(59,130,246,.28), rgba(37,99,235,.20)) !important; /* blue-500/600 */
+  border-color: rgba(59,130,246,.58) !important;
+  color:#e6f1ff !important;
+}
 .small{font-size:12px; color:var(--muted)}
 
 /* Payment filters toolbar */

@@ -833,6 +833,7 @@
             try{
               if(cat==='zero') badges.push('<span class="badge done">'+statusLabel('zero')+'</span>');
               else if(cat==='awaiting') badges.push('<span class="badge awaiting">'+statusLabel('awaiting')+'</span>');
+              else if(cat==='open' && !isActuallyOverdue) badges.push('<span class="badge good">'+statusLabel('open')+'</span>');
             }catch{}
             try{
               // Show overdue badge only when not awaiting/zero
@@ -2274,7 +2275,7 @@ host._bound = true;
     if(repaid){
       const loans = state.loans.map(l=> l.id===loan.id ? { ...l, status:'closed' } : l);
       state.loans = loans;
-      refreshLoansTable(); refreshPaysTable(); try{ refreshLoansCards && refreshLoansCards(); }catch{} updateSummary();
+      refreshLoansTable(); refreshPaysTable(); try{ refreshLoansCards && refreshLoansCards(); }catch{} try{ refreshArchiveTable(); }catch{} updateSummary();
       return;
     }
     // Not repaid. Ask if wants to extend
@@ -3023,8 +3024,10 @@ host._bound = true;
       console.debug('[DK][filters]', where||'', { uiFilters: { ...uiFilters }, counts });
     }catch{}
   }
-  // Archive lock state (UI only)
+  // Archive lock state (UI only) — controls ONLY the ops column, not visibility
   let archiveUnlocked = false;
+  const ARCH_KEY_TS = 'dk_archive_unlocked_at';
+  const ARCH_EXP_MS = 10*60*1000; // 10 minutes
 
   function applySort(array, key, dir, getVal){
     if(!key) return array;
@@ -3361,10 +3364,21 @@ host._bound = true;
   function bindArchiveControls(){
     const lockBtn = document.querySelector('#archiveLockBtn');
     if(lockBtn && !lockBtn._bound){
+      // On first bind, restore unlock state from session and set icon
+      try{
+        const ts = Number(sessionStorage.getItem(ARCH_KEY_TS)||'0');
+        if(ts){
+          const elapsed = Date.now() - ts;
+          if(elapsed < ARCH_EXP_MS){ archiveUnlocked = true; } else { sessionStorage.removeItem(ARCH_KEY_TS); archiveUnlocked = false; }
+        }
+      }catch{}
+      try{ lockBtn.textContent = archiveUnlocked ? '🔓' : '🔒'; }catch{}
+      try{ refreshArchiveTable(); }catch{}
       lockBtn.addEventListener('click', async ()=>{
         try{
           if(archiveUnlocked){
             archiveUnlocked = false;
+            try{ sessionStorage.removeItem(ARCH_KEY_TS); }catch{}
             lockBtn.textContent = '🔒';
             refreshArchiveTable();
             return;
@@ -3372,6 +3386,7 @@ host._bound = true;
           const pass = await promptFaPassword('رمز عبور بایگانی را وارد کنید', { defaultValue: '' });
           if(String(pass) === '82161019'){
             archiveUnlocked = true;
+            try{ sessionStorage.setItem(ARCH_KEY_TS, String(Date.now())); }catch{}
             lockBtn.textContent = '🔓';
             refreshArchiveTable();
           }else{
@@ -3393,14 +3408,14 @@ host._bound = true;
           if(!ok) return;
           state.loans = state.loans.filter(l=> l.id!==id);
           state.pays  = state.pays.filter(p=> p.loanId!==id);
-          refreshLoansTable(); refreshPaysTable(); refreshArchiveTable(); updateSummary();
+          refreshLoansTable(); refreshPaysTable(); refreshArchiveTable(); try{ refreshLoansCards(); }catch{} updateSummary();
         }else if(unBtn){
           const id = unBtn.getAttribute('data-id'); if(!id) return;
           if(!archiveUnlocked) return;
           const ok = await confirmFa('این قرض از بایگانی خارج شود و دوباره فعال گردد؟');
           if(!ok) return;
           state.loans = state.loans.map(l=> l.id===id ? { ...l, status:'open' } : l);
-          refreshLoansTable(); refreshPaysTable(); refreshArchiveTable(); updateSummary();
+          refreshLoansTable(); refreshPaysTable(); refreshArchiveTable(); try{ refreshLoansCards(); }catch{} updateSummary();
         }else{
           // Row click opens detail modal (ignore clicks on buttons)
           const tr = ev.target.closest('tr[data-id]');
@@ -3635,7 +3650,7 @@ host._bound = true;
         const active = uiFilters.status===key ? ' active' : '';
         const disabled = count<=0 ? ' disabled' : '';
         const attrs = disabled ? '' : ' role="button" tabindex="0"';
-        const ico = key==='overdue' ? '⏰' : key==='awaiting' ? '⌛' : key==='open' ? '▶' : '✔';
+        const ico = key==='overdue' ? '⏰' : key==='awaiting' ? '⌛' : key==='open' ? '▶' : '🏁';
         const label = `${baseLabel} ${toFaDigits(String(count))} مورد`;
         return `<span class="sum-chip${active}${disabled}" data-status="${key}"${attrs}><span class="ico" aria-hidden="true">${ico}</span><span>${label}</span></span>`;
       };

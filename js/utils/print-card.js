@@ -39,6 +39,10 @@
         .loan-card.print-snapshot .muted{ color:#334155 !important }
         .loan-card.print-snapshot .val{ color:#0b1220 !important }
         .loan-card.print-snapshot .badge{ filter:none !important }
+        /* Avoid clipping of wide badges by making containers allow overflow */
+        .loan-card.print-snapshot .status-badges,
+        .loan-card.print-snapshot .val.status-badges,
+        .loan-card.print-snapshot .badges-left{ overflow:visible !important; padding-inline:4px }
         /* Keep mini-progress visible with colors that work on white */
         .mini-progress{ height:6px; border-radius:999px; overflow:hidden; background:#e5e7eb }
         .mini-progress > span{ display:block; height:100% }
@@ -51,13 +55,15 @@
         .loan-card.printing .status-badges .btn{ display:none !important }
         /* Print-optimized badges: solid high-contrast colors for readability on white */
         .loan-card.print-snapshot .status-badges .badge{
-          display:inline-block !important; padding:3px 10px; border-radius:10px; font-weight:800; font-size:13px;
+          display:inline-block !important; padding:3px 12px; border-radius:12px; font-weight:800; font-size:13px;
           -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
           background:#e2e8f0 !important; color:#0b1220 !important; border:1px solid #94a3b8 !important;
           font-family:'Vazirmatn', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif !important;
           letter-spacing: 0 !important; word-spacing: 0 !important; white-space: nowrap !important;
           text-rendering: optimizeLegibility;
           font-feature-settings: "liga" 1, "calt" 1, "kern" 1;
+          /* fix edge fade in canvas downscale */
+          background-clip: padding-box !important; box-shadow:none !important; filter:none !important; outline:1px solid transparent;
         }
         .loan-card.print-snapshot .status-badges .badge.warn{ background:#fecaca !important; color:#7f1d1d !important; border-color:#ef4444 !important }
         .loan-card.print-snapshot .status-badges .badge.awaiting{ background:#bae6fd !important; color:#0c4a6e !important; border-color:#38bdf8 !important }
