@@ -2,6 +2,37 @@
 
 This file documents notable changes, fixes, and enhancements by day.
 
+## 2025-08-29
+
+- __Shared RTL Form Utilities__
+  - Introduced reusable classes for two-column RTL forms: `.dk-form-grid-2col`, `.dk-form-label`, `.dk-form-control-rtl`, `.dk-form-control-row`. (`css/styles.css`)
+  - Migrated the Add-Payment modal to these classes for consistent layout. (`js/app.js`)
+
+- __Add-Payment Modal UX__
+  - Right-aligned labels and inputs; fixed grid columns (80px | 300px). (`js/app.js`)
+  - Note field aligned with its label (same row) and switched to textarea with auto-resize to show full content. (`js/app.js`)
+  - Prefill amount formatting (fa-IR) robustness preserved. (`js/app.js`)
+
+- __Quick Interest Payment Flow__
+  - Added helper to open Add-Payment prefilled with computed period interest. (`js/app.js`)
+  - Hooked the card "رسیدگی" action to open quick interest when overdue. (`js/utils/resolve-card.js`)
+
+- __Creditor Filter Chips__
+  - Creditor chips now update all views: Loans Table, Payments Table, and Cards View. (`js/app.js`)
+  - Added keyboard accessibility (Enter/Space) and prevented duplicate binding. (`js/app.js`)
+
+- __Print Button Polish__
+  - Aligned the print button with card padding and added subtle accent background/border for better affordance. (`js/utils/print-card.js`)
+
+- __Clean-up__
+  - Removed DK debug logs and temporary diagnostics. (`js/app.js`, `js/utils/resolve-card.js`)
+
+### File Highlights
+- `Daftar_Kol/css/styles.css`: shared RTL form utilities.
+- `Daftar_Kol/js/app.js`: new payment modal refactor, creditor chips refresh cards, auto-resize note, prefill.
+- `Daftar_Kol/js/utils/resolve-card.js`: overdue resolve opens quick interest flow.
+- `Daftar_Kol/js/utils/print-card.js`: spacing and accent for print button.
+
 ## 2025-08-27
 
 - __Loans — Cards View__
