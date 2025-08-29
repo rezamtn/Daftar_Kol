@@ -706,10 +706,16 @@
           const cat = (function(){
             try{
               const s = String(loan?.status||'').toLowerCase();
-              if(remInstNum===0) return 'zero';
-              if(s==='awaiting') return 'awaiting';
-              if(isOverdue) return 'overdue';
-              return 'open';
+              // Rule:
+              // - If installments remain: overdue has priority; otherwise open
+              // - If no installments remain: awaiting overrides zero
+              if(remInstNum > 0){
+                if(isOverdue) return 'overdue';
+                return 'open';
+              }else{
+                if(s==='awaiting') return 'awaiting';
+                return 'zero';
+              }
             }catch{ return 'open'; }
           })();
           const catFa = statusLabel(cat);
@@ -773,10 +779,14 @@
             try{
             const parts = [];
             const todayISO = (new Date()).toISOString().slice(0,10);
-            // If no installments remain, show 'done' and also show resolve button right away
+            // If no installments remain, show badge based on status: awaiting > done
             if(remInstNum===0){
+              const sNow = String(loan?.status||'').toLowerCase();
+              const badge = (sNow==='awaiting')
+                ? `<span class="badge awaiting">${statusLabel('awaiting')}</span>`
+                : `<span class="badge done">${statusLabel('zero')}</span>`;
               const btn = `<button class="btn small resolve" data-act="resolve" data-id="${loan.id}" onclick="try{ window.dkResolveCard && window.dkResolveCard('${loan.id}'); }catch{}"><span class="ico">⏰</span><span>رسیدگی</span></button>`;
-              return `<div class="badges-left"><span class="badge done">${statusLabel('zero')}</span></div>${btn}`;
+              return `<div class="badges-left">${badge}</div>${btn}`;
             }
             // Recompute derived snapshot locally to avoid any stale/closure issues
             const d2 = (function(){ try{ return computeLoanDerived(loan)||{}; }catch{ return {}; } })();
@@ -825,7 +835,8 @@
               else if(cat==='awaiting') badges.push('<span class="badge awaiting">'+statusLabel('awaiting')+'</span>');
             }catch{}
             try{
-              if(isActuallyOverdue && actualOverdueMonths>0){
+              // Show overdue badge only when not awaiting/zero
+              if(isActuallyOverdue && actualOverdueMonths>0 && cat!=='awaiting' && cat!=='zero'){
                 const faMonths = (typeof vj_toFaDigits==='function')? vj_toFaDigits(String(actualOverdueMonths)) : String(actualOverdueMonths);
                 badges.push(`<span class="badge warn">${faMonths} ماه دیرکرد</span>`);
               }
@@ -3029,13 +3040,36 @@ host._bound = true;
 
   function getVisibleLoansForTable(){
     const loansAll = state.loans || [];
-    let loans = uiFilters.creditor
-      ? loansAll.filter(l=> (String(l.creditor||'').trim() === uiFilters.creditor))
+    const filterCred = String(uiFilters.creditor||'').trim();
+    let loans = filterCred
+      ? loansAll.filter(l=> (String(l.creditor||'').trim() === filterCred))
       : loansAll.slice();
     // Map with derived once, to keep categorization consistent everywhere
     const withD = loans.map(l=>({ loan:l, d: computeLoanDerived(l)||{} }));
     if(uiFilters.status){
-      loans = withD.filter(row => categorizeLoan(row.loan, row.d) === uiFilters.status).map(row=>row.loan);
+      // Detailed debug buckets for status-specific filters
+      const _dbg = { inc: [], exc: [] };
+      loans = withD.filter(row => {
+        const k = uiFilters.status;
+        if(k==='overdue'){
+          // Overdue: only true overdue items (exclude awaiting)
+          const d = row.d || {};
+          const today = new Date().toISOString().slice(0,10);
+          const rem = Number(d.remainingInstallments||0);
+          const isOverdue = rem>0 && Number(d.balance||0)>0 && !!d.nextDue && String(d.nextDue) < today;
+          if(window.DK_DEBUG){ (isOverdue? _dbg.inc : _dbg.exc).push({ id: row.loan.id, rem, balance: Number(d.balance||0), nextDue: d.nextDue||'', today, isOverdue, status: String(row.loan.status||'') }); }
+          return isOverdue;
+        }
+        if(k==='awaiting'){
+          const s = String(row.loan.status||'').toLowerCase();
+          const rem = Number((row.d||{}).remainingInstallments||0);
+          const ok = (s==='awaiting' && rem===0);
+          if(window.DK_DEBUG){ (ok? _dbg.inc : _dbg.exc).push({ id: row.loan.id, rem, status: s }); }
+          return ok;
+        }
+        return categorizeLoan(row.loan, row.d) === k;
+      }).map(row=>row.loan);
+      try{ if(window.DK_DEBUG){ console.debug('[DK][filter][status='+uiFilters.status+'] include', _dbg.inc); console.debug('[DK][filter][status='+uiFilters.status+'] exclude', _dbg.exc); } }catch{}
     }else{
       loans = withD.map(row=>row.loan);
     }
@@ -3049,8 +3083,9 @@ host._bound = true;
   // Base visible loans (without status filter), used for summary counters
   function getVisibleLoansBase(){
     const loansAll = state.loans || [];
-    let loans = uiFilters.creditor
-      ? loansAll.filter(l=> (String(l.creditor||'').trim() === uiFilters.creditor))
+    const filterCred = String(uiFilters.creditor||'').trim();
+    let loans = filterCred
+      ? loansAll.filter(l=> (String(l.creditor||'').trim() === filterCred))
       : loansAll.slice();
     // Exclude archived (closed)
     loans = loans.filter(l=> String(l.status||'') !== 'closed');
@@ -3064,14 +3099,17 @@ host._bound = true;
       const remInstNum = Number(d && d.remainingInstallments)||0;
       const balance = Number(d && d.balance)||0;
       const hasNextDue = !!(d && d.nextDue);
-      const isOverdue = (balance>0) && hasNextDue && String(d.nextDue) < today;
+      const isOverdue = (remInstNum>0) && (balance>0) && hasNextDue && String(d.nextDue) < today;
       const s = String(loan.status||'').toLowerCase();
-      // Priority: awaiting > zero-installments > overdue > open
-      if(s==='awaiting') return 'awaiting';
-      // If all installments are paid, treat as 'zero' (even if nextDue is past)
-      if(remInstNum===0 && s!=='closed') return 'zero';
-      if(isOverdue) return 'overdue';
-      return 'open';
+      // Business rules:
+      // - If installments remain: overdue has priority else open
+      // - If no installments remain: awaiting (explicit) overrides zero
+      if(remInstNum > 0){
+        return isOverdue ? 'overdue' : 'open';
+      }else{
+        if(s==='awaiting') return 'awaiting';
+        return 'zero';
+      }
     }catch{ return 'open'; }
   }
 
@@ -3197,7 +3235,10 @@ host._bound = true;
       if(toISO && d > toISO) return false;
       return true;
     };
-    const matchCreditor = (loan)=> uiFilters.creditor ? (String(loan.creditor||'').trim() === uiFilters.creditor) : true;
+    const matchCreditor = (loan)=> {
+      const filterCred = String(uiFilters.creditor||'').trim();
+      return filterCred ? (String(loan.creditor||'').trim() === filterCred) : true;
+    };
 
     // build filtered list with deriveds for sorting
     let list = [];
@@ -3542,8 +3583,8 @@ host._bound = true;
           elBy.addEventListener('click', (ev)=>{
             const t = ev.target.closest('.sum-chip');
             if(!t) return;
-            const cred = t.getAttribute('data-cred') || '';
-            uiFilters.creditor = (uiFilters.creditor === cred) ? '' : cred;
+            const cred = (t.getAttribute('data-cred') || '').trim();
+            uiFilters.creditor = (String(uiFilters.creditor||'').trim() === cred) ? '' : cred;
             refreshLoansTable();
             refreshPaysTable();
             try{ if(typeof refreshLoansCards==='function') refreshLoansCards(); }catch{}
@@ -3579,7 +3620,16 @@ host._bound = true;
       let cntOverdue=0, cntAwaiting=0, cntOpen=0, cntZero=0;
       try{
         const base = getVisibleLoansBase();
-        base.forEach(row=>{ try{ const c=categorizeLoan(row.loan, row.d); if(c==='overdue') cntOverdue++; else if(c==='awaiting') cntAwaiting++; else if(c==='zero') cntZero++; else cntOpen++; }catch{} });
+        base.forEach(row=>{
+          try{
+            const cat = categorizeLoan(row.loan, row.d);
+            if(cat==='overdue') cntOverdue++;
+            else if(cat==='awaiting') cntAwaiting++;
+            else if(cat==='zero') cntZero++;
+            else cntOpen++;
+          }catch{}
+        });
+        try{ if(window.DK_DEBUG){ console.debug('[DK][summary][counts]', { overdue:cntOverdue, awaiting:cntAwaiting, open:cntOpen, zero:cntZero, filter:{...uiFilters} }); } }catch{}
       }catch{}
       const mk = (key, baseLabel, count)=>{
         const active = uiFilters.status===key ? ' active' : '';

@@ -27,6 +27,17 @@ This file documents notable changes, fixes, and enhancements by day.
 - __Clean-up__
   - Removed DK debug logs and temporary diagnostics. (`js/app.js`, `js/utils/resolve-card.js`)
 
+- __Status Logic & Filters__
+  - Finalized business rules and aligned Cards, Table filters, and Summary counters:
+    - Overdue: `remainingInstallments > 0` AND `balance > 0` AND `nextDue < today`.
+    - Open: `remainingInstallments > 0` and not overdue.
+    - Zero (اقساط تمام شد): `remainingInstallments === 0` and `status !== 'awaiting'`.
+    - Awaiting (در انتظار دریافت اصل پول): `remainingInstallments === 0` AND `status === 'awaiting'`.
+  - Cards: prevent multiple badges; awaiting overrides zero when rem=0; overdue badge never appears alongside awaiting/zero. (`js/app.js`)
+  - Filters: awaiting returns only explicit awaiting+rem=0; overdue excludes awaiting/zero. (`js/app.js`)
+  - Counters: computed solely via `categorizeLoan()` to guarantee consistency with filters. (`js/app.js`)
+  - Added gated debug logs (`window.DK_DEBUG=true`) for status filters and summary counts. (`js/app.js`)
+
 ### File Highlights
 - `Daftar_Kol/css/styles.css`: shared RTL form utilities.
 - `Daftar_Kol/js/app.js`: new payment modal refactor, creditor chips refresh cards, auto-resize note, prefill.
