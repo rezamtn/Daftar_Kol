@@ -930,6 +930,15 @@
               return `<div class="badges-left">${statusLabel(cat)}</div>`;
             }
           })();
+          // Compute annual nominal/effective and joint shares
+          const isJointCred = /مشترک/.test(String(loan.creditor||''));
+          const annNom = (Number(loan.rateMonthlyPct||0) * 12);
+          const annEff = (function(){ try{ const m=Number(loan.rateMonthlyPct||0)/100; return (Math.pow(1+m,12)-1)*100; }catch{ return 0; } })();
+          const pTotal = Number(loan.principal||0);
+          const pSara  = Number(loan.principalSara||0);
+          const pReza  = Number(loan.principalReza||0);
+          const iSara  = (isFinite(paidInterest) && pTotal>0) ? Math.round(paidInterest * (pSara/pTotal)) : 0;
+          const iReza  = (isFinite(paidInterest) && pTotal>0) ? Math.round(paidInterest * (pReza/pTotal)) : 0;
           return `
             <div class="loan-card lc-v2" data-id="${loan.id}" data-cat="${cat}" data-label="${catFa}" title="${loan.borrower||''}">
               ${badge}
@@ -943,10 +952,16 @@
                   return '—';
                 })()}</div>
                 <div class="muted">اصل</div><div class="val">${Number(loan.principal||0).toLocaleString('fa-IR')} تومان</div>
+                ${isJointCred ? `<div class="muted">اصل سهم سارا</div><div class="val">${Number(pSara||0).toLocaleString('fa-IR')} تومان</div>` : ''}
+                ${isJointCred ? `<div class="muted">اصل سهم رضا</div><div class="val">${Number(pReza||0).toLocaleString('fa-IR')} تومان</div>` : ''}
                 <div class="muted extra-row">سود ماهانه</div><div class="val extra-row">${vj_toFaDigits(String(Number(loan.rateMonthlyPct||0)))}٪ در ماه</div>
+                <div class="muted extra-row">نرخ سالانه ساده</div><div class="val extra-row">${toFaDigits(String(annNom.toFixed(1)))}٪</div>
+                <div class="muted extra-row">نرخ سالانه موثر</div><div class="val extra-row">${toFaDigits(String(annEff.toFixed(1)))}٪</div>
                 <div class="muted extra-row">مدت قرض</div><div class="val extra-row">${loan.interestEveryMonths? vj_toFaDigits(String(loan.interestEveryMonths))+' ماه' : '—'}</div>
                 <div class="muted">نحوه پرداخت سود</div><div class="val">${modeTxt}</div>
                 <div class="muted">سود پرداختی</div><div class="val">${Number(paidInterest).toLocaleString('fa-IR')} تومان</div>
+                ${isJointCred ? `<div class="muted">سهم سود سارا</div><div class="val">${Number(iSara).toLocaleString('fa-IR')} تومان</div>` : ''}
+                ${isJointCred ? `<div class="muted">سهم سود رضا</div><div class="val">${Number(iReza).toLocaleString('fa-IR')} تومان</div>` : ''}
                 <div class="muted">پیشرفت اقساط</div><div class="val">
                   <div class="mini-progress" style="height:6px;background:rgba(255,255,255,.15);border-radius:999px;overflow:hidden">
                     <span class="${pctClass}" style="display:block;height:100%;background:${barColor};width:${pct}%"></span>
