@@ -27,6 +27,66 @@
       wrap.addEventListener('click', (e)=>{ if(e.target===wrap){ e.stopPropagation(); } });
     });
   }
+  // Strict Persian month addition per product rule
+  function addMonthsPersian(iso, m){
+    return addMonthsJalali(iso, m);
+  }
+
+  // Minimal jalaali-js helpers (MIT) for conversions
+  function toJalaali(gy, gm, gd){
+    const g_d_m = [0,31,59,90,120,151,181,212,243,273,304,334];
+    let jy = 0, jm = 0, jd = 0;
+    let gy2 = gy-1600, gm2 = gm-1, gd2 = gd-1;
+    let g_day_no = 365*gy2 + Math.floor((gy2+3)/4) - Math.floor((gy2+99)/100) + Math.floor((gy2+399)/400);
+    g_day_no += g_d_m[gm2] + gd2;
+    if (gm2>1 && ((gy%4===0 && gy%100!==0) || (gy%400===0))) g_day_no++;
+    let j_day_no = g_day_no-79;
+    const j_np = Math.floor(j_day_no/12053);
+    j_day_no %= 12053;
+    jy = 979 + 33*j_np + 4*Math.floor(j_day_no/1461);
+    j_day_no %= 1461;
+    if (j_day_no >= 366) { jy += Math.floor((j_day_no-366)/365); j_day_no = (j_day_no-366)%365; }
+    const jm_list = [31,31,31,31,31,31,30,30,30,30,30,29];
+    for (let i=0; i<12 && j_day_no >= jm_list[i]; ++i){ j_day_no -= jm_list[i]; jm++; }
+    jm += 1; jd = j_day_no+1;
+    return { jy, jm, jd };
+  }
+  function toGregorian(jy, jm, jd){
+    jy -= 979; jm -= 1; jd -= 1;
+    let j_day_no = 365*jy + Math.floor(jy/33)*8 + Math.floor(((jy%33)+3)/4);
+    for (let i=0; i<jm; ++i) j_day_no += (i<6?31:30);
+    j_day_no += jd;
+    let g_day_no = j_day_no + 79;
+    let gy = 1600 + 400*Math.floor(g_day_no/146097);
+    g_day_no %= 146097;
+    let leap = true;
+    if (g_day_no >= 36525){ g_day_no--; gy += 100*Math.floor(g_day_no/36524); g_day_no %= 36524; if (g_day_no >= 365) g_day_no++; else leap = false; }
+    gy += 4*Math.floor(g_day_no/1461); g_day_no %= 1461;
+    if (g_day_no >= 366){ leap = false; g_day_no--; gy += Math.floor(g_day_no/365); g_day_no %= 365; }
+    const gd_m = [0,31, (leap?29:28),31,30,31,30,31,31,30,31,30,31];
+    let gm = 1;
+    for (; gm<=12 && g_day_no >= gd_m[gm]; ++gm){ g_day_no -= gd_m[gm]; }
+    const gd = g_day_no+1;
+    return { gy, gm, gd };
+  }
+  function jMonthLength(jy, jm){ return jm<=6?31: (jm<=11?30: ( ( ( (jy%33)%4)===1 )?30:29 )); }
+
+  // Add months in Jalali calendar, keeping day-of-month stable when possible
+  function addMonthsJalali(iso, m){
+    try{
+      if(!iso) return '';
+      const d = new Date(iso);
+      const { jy, jm, jd } = toJalaali(d.getFullYear(), d.getMonth()+1, d.getDate());
+      let nm = jm + Number(m||0), ny = jy;
+      while(nm>12){ nm-=12; ny+=1; }
+      while(nm<1){ nm+=12; ny-=1; }
+      const mdays = jMonthLength(ny, nm);
+      const nd = Math.min(jd, mdays);
+      const g = toGregorian(ny, nm, nd);
+      const y = g.gy, mo = String(g.gm).padStart(2,'0'), da = String(g.gd).padStart(2,'0');
+      return `${y}-${mo}-${da}`;
+    }catch{ return iso; }
+  }
   // Expose for external callers (e.g., inline handlers/tests)
   try{ if(typeof window!=='undefined'){ window.openPaymentFormForLoan = openPaymentFormForLoan; } }catch{}
   // Inject a persistent CSS override to ensure datepicker popups stay above modals
@@ -2292,7 +2352,7 @@ host._bound = true;
         const noteLine = `تمدید ${months} ماه در ${new Date().toISOString().slice(0,10)}`;
         // Recompute repayment date: startDate + newMonths
         const startIso = toISO(l.startDate);
-        const newRepay = (startIso && Number(newMonths)>0) ? addMonths(startIso, newMonths) : (l.repaymentDate||'');
+        const newRepay = (startIso && Number(newMonths)>0) ? addMonthsPersian(startIso, newMonths) : (l.repaymentDate||'');
         return { ...l, interestEveryMonths: newMonths, repaymentDate: newRepay, notes: (l.notes? (l.notes+"\n") : '') + noteLine, status: 'open' };
       });
       state.loans = loans;
@@ -2799,11 +2859,12 @@ host._bound = true;
   };
   // expose for utils modules (e.g., resolve-card.js)
   try{ if(typeof window!=='undefined'){ window.toISO = toISO; } }catch{}
+  // Gregorian-based month addition (keeps day-of-month; clamps to end-of-month)
   const addMonths = (dateStr, m) => {
     const d = new Date(dateStr);
     const t = new Date(d.getTime());
     t.setMonth(t.getMonth() + m);
-    // keep day of month stable
+    // keep day of month stable; if overflowed (e.g., 31 to a 30-day month) clamp to month end
     if(t.getDate() !== d.getDate()) t.setDate(0);
     const y = t.getFullYear();
     const mo = String(t.getMonth()+1).padStart(2,'0');
@@ -2887,8 +2948,28 @@ host._bound = true;
       const repayHint = document.querySelector('#repaymentDateHint');
       const startISO = startAlt?.value || '';
       const months = parseNum(periodEl?.value || '0');
-      if(startISO && months>0){
-        const iso = addMonths(startISO, months);
+      if(months>0){
+        // Prefer parsing from visible Persian date to avoid TZ drift
+        let iso = '';
+        const startFaEl = document.querySelector('#startDate');
+        const faStr = (startFaEl && startFaEl.value) ? String(startFaEl.value) : '';
+        if(faStr){
+          const ascii = normalizeDigitsToAscii(faStr).replace(/[^0-9\/\-]/g,'');
+          const parts = ascii.split(/[\/\-]/);
+          if(parts.length>=3){
+            let jy = parseInt(parts[0],10)||0, jm = parseInt(parts[1],10)||0, jd = parseInt(parts[2],10)||0;
+            // add months strictly in Jalali
+            jm += months;
+            while(jm>12){ jm-=12; jy++; }
+            while(jm<1){ jm+=12; jy--; }
+            const md = jMonthLength(jy, jm);
+            if(jd>md) jd = md;
+            const g = toGregorian(jy, jm, jd);
+            iso = `${g.gy}-${String(g.gm).padStart(2,'0')}-${String(g.gd).padStart(2,'0')}`;
+          }
+        }
+        // Fallback to ISO-based add if parsing failed
+        if(!iso && startISO){ iso = addMonthsPersian(startISO, months); }
         if(repayAlt) repayAlt.value = iso;
         if(repayInp) repayInp.value = fmtFaYMD(iso);
         if(repayHint){ const fa = fmtFaDate(iso), en = fmtEnDate(iso); repayHint.textContent = fa && en ? `${fa} — ${en}` : ''; }
@@ -2960,7 +3041,7 @@ host._bound = true;
     const startISO = toISO(loan.startDate);
     const repayISO = toISO(loan.repaymentDate);
     const durationMonths = (parseInt(String(toNum(loan.interestEveryMonths)||0),10) || monthsDiff(startISO, repayISO) || 0);
-    const maturityISO = repayISO || (durationMonths>0 && startISO ? addMonths(startISO, durationMonths) : '');
+    const maturityISO = repayISO || (durationMonths>0 && startISO ? addMonthsPersian(startISO, durationMonths) : '');
     const paidInstallments = pays.filter(p=> p.type==='interest').length;
     const totalInstallments = mode===0 ? 1 : (durationMonths>0 ? Math.ceil(durationMonths / (mode||1)) : 0);
     let nextDue = '';
@@ -2968,7 +3049,7 @@ host._bound = true;
       nextDue = maturityISO || '';
     }else if(totalInstallments>0 && paidInstallments < totalInstallments){
       const targetMonthsFromStart = (mode || 1) * (paidInstallments + 1);
-      nextDue = startISO ? addMonths(startISO, targetMonthsFromStart) : '';
+      nextDue = startISO ? addMonthsPersian(startISO, targetMonthsFromStart) : '';
       if(maturityISO && nextDue > maturityISO) nextDue = maturityISO;
     }
 
@@ -3896,17 +3977,38 @@ host._bound = true;
     // keep inputs displayed as Persian digits with '.' and show inline percent sign on the LEFT side of the number
     attachDecimalFaDot(mEl, { appendPercent:true, percentPrefix:true });
     attachDecimalFaDot(aEl, { appendPercent:true, percentPrefix:true });
-    mEl?.addEventListener('input', ()=>{ updAPR(); });
+    // Guard against circular updates between monthly <-> annual fields
+    let _syncingAPR = false;
+    mEl?.addEventListener('input', ()=>{
+      if(_syncingAPR) return;
+      updAPR();
+      // derive annual effective from monthly and reflect in annual field
+      try{
+        const m = parseFloat(normalizeDecimalAscii(mEl.value||'0'))/100;
+        const eff = m>0 ? (Math.pow(1+m,12)-1)*100 : 0;
+        // Avoid overwriting while user is typing in the annual field
+        _syncingAPR = true;
+        if(aEl && document.activeElement !== aEl){
+          aEl.value = m>0 ? toFaDigits(String(eff.toFixed(2))) : '';
+        }
+        _syncingAPR = false;
+      }catch{ _syncingAPR = false; }
+    });
     aEl?.addEventListener('input', ()=>{
+      if(_syncingAPR) return;
       const a = parseFloat(normalizeDecimalAscii(aEl.value||'0'))/100;
       if(a>0){
-        const m = (Math.pow(1+a,1/12)-1)*100;
+        const m = (Math.pow(1 + a, 1/12) - 1) * 100;
         const ascii = normalizeDecimalAscii(m.toFixed(2));
+        _syncingAPR = true;
         mEl.value = toFaDigits(ascii);
         try{ mEl.dispatchEvent(new Event('input', { bubbles:true })); }catch{}
+        _syncingAPR = false;
       }else{
         // If annual effective is cleared or invalid, clear monthly field too
+        _syncingAPR = true;
         if(mEl){ mEl.value = ''; try{ mEl.dispatchEvent(new Event('input', { bubbles:true })); }catch{} }
+        _syncingAPR = false;
       }
       updAPR();
     });
@@ -3917,13 +4019,35 @@ host._bound = true;
     const expLbl = document.querySelector(IDS.expectedInterestLabel);
     const expAmt = document.querySelector(IDS.expectedInterestAmount);
     const updateExpected = ()=>{
-      const principal = parseNum(principalInput?.value||'0');
-      const mRatePct = parseFloat(normalizeDecimalAscii(mEl?.value||'0'));
-      const mRate = mRatePct/100;
-      const mode = parseInt(String(payoutSel?.value||'1'),10);
-      // months multiplier
-      const durationMonths = parseNum(periodEl?.value||'0');
-      const k = mode===0 ? (durationMonths||0) : mode; // 0 => at maturity = whole duration
+      // Principal: robustly parse FA/EN digits
+      const prinAscii = normalizeDigitsToAscii(String(principalInput?.value||'')).replace(/[^0-9]/g,'');
+      const principal = parseInt(prinAscii||'0',10) || 0;
+      // Monthly rate (%): parse decimal safely from FA/EN
+      const mRatePct = parseFloat(normalizeDecimalAscii(mEl?.value||''));
+      const mRate = isFinite(mRatePct) ? (mRatePct/100) : 0;
+      // Mode and duration
+      const mode = parseInt(String(payoutSel?.value||'1'),10) || 1;
+      const durAscii = normalizeDigitsToAscii(String(periodEl?.value||'')).replace(/[^0-9]/g,'');
+      const durationMonths = parseInt(durAscii||'0',10) || 0;
+      // For mode=0 (at maturity), if duration input is empty/incorrect, derive by dates
+      let k = mode;
+      if(mode===0){
+        let kByDates = 0;
+        try{
+          const sISO = (document.querySelector(IDS.startDateAlt)?.value||'') || toISO(document.querySelector(IDS.startDate)?.value||'');
+          const rISO = (document.querySelector(IDS.repaymentDateAlt)?.value||'') || toISO(document.querySelector(IDS.repaymentDate)?.value||'');
+          if(sISO && rISO){
+            const d1 = new Date(sISO); const d2 = new Date(rISO);
+            const y1 = d1.getFullYear(), m1 = d1.getMonth()+1, dd1 = d1.getDate();
+            const y2 = d2.getFullYear(), m2 = d2.getMonth()+1, dd2 = d2.getDate();
+            let months = (y2 - y1)*12 + (m2 - m1);
+            if(dd2 >= dd1) months += 1;
+            kByDates = Math.max(1, months|0);
+          }
+        }catch{}
+        k = Math.max(durationMonths||0, kByDates||0);
+      }
+      // 0 => at maturity = whole duration
       // label text
       const labelText = mode===1 ? 'سود قابل انتظار پرداختی ماهانه' : mode===2 ? 'سود قابل انتظار پرداختی دو ماهه' : mode===3 ? 'سود قابل انتظار پرداختی سه ماهه' : 'سود قابل انتظار پرداختی در سررسید';
       if(expLbl) expLbl.textContent = labelText;
@@ -3939,16 +4063,18 @@ host._bound = true;
       periodEl.value = toFaDigits(latin);
       recomputeRepaymentFromUI();
       updateExpected();
+      setTimeout(updateExpected, 0);
     });
 
     // Recompute expected payout on key inputs (debounced for smoother typing)
     const debouncedUE = debounce(updateExpected, 120);
     principalInput?.addEventListener('input', debouncedUE);
     mEl?.addEventListener('input', debouncedUE);
-    payoutSel?.addEventListener('change', updateExpected);
+    payoutSel?.addEventListener('change', ()=>{ try{ updateExpected(); setTimeout(updateExpected, 0); setTimeout(updateExpected, 150); }catch{} });
 
     const submitBtn = document.querySelector(IDS.submitLoanBtn);
     const cancelBtn = document.querySelector(IDS.cancelEditLoan);
+    const resetBtn  = (function(){ try{ return document.querySelector('#loanForm button[type="reset"]'); }catch{ return null; } })();
     const enterEditMode = (loan)=>{
       // Mark editing early to prevent any UI clear side-effects
       try{ window._dkEditingLoan = true; }catch{}
@@ -3956,6 +4082,10 @@ host._bound = true;
       // Add editing class before any toggles
       try{ form.classList.add('editing'); }catch{}
       editingId = loan.id;
+      // Editing UI: change buttons visibility/text
+      try{ if(submitBtn) submitBtn.textContent = 'ذخیره تغییرات'; }catch{}
+      try{ if(cancelBtn){ cancelBtn.style.display = ''; cancelBtn.textContent = 'لغو ویرایش'; } }catch{}
+      try{ if(resetBtn) resetBtn.style.display = 'none'; }catch{}
       // populate fields
       if(creditorPreset && creditorInput){
         if((loan.creditor||'') === JOINT_LABEL){
@@ -4038,6 +4168,8 @@ host._bound = true;
       if(rAlt) rAlt.value = loan.repaymentDate || '';
       if(rIn) rIn.value = fmtFaYMD(loan.repaymentDate||'');
       const rHint = document.querySelector(IDS.repaymentDateHint); if(rHint){ const fa=fmtFaDate(loan.repaymentDate||''), en=fmtEnDate(loan.repaymentDate||''); rHint.textContent = (fa&&en)? `${fa} — ${en}`: ''; }
+      // ensure expected interest is shown immediately in edit mode
+      try{ if(typeof updateExpected === 'function') updateExpected(); }catch{}
       try{ window._dkEditingLoan = false; }catch{}
       // Defensive: late-bound listeners may still clear fields; force re-fill a few times
       const refiller = ()=>{
@@ -4101,6 +4233,7 @@ host._bound = true;
       try{ window._dkEditingLoan = false; }catch{}
       if(submitBtn) submitBtn.textContent = 'ثبت قرض';
       cancelBtn.style.display = 'none';
+      try{ if(resetBtn) resetBtn.style.display = ''; }catch{}
       form.classList.remove('editing');
       const w=document.querySelector('#principalWords'); if(w) w.textContent='';
       const rHint = document.querySelector('#repaymentDateHint'); if(rHint) rHint.textContent='';
@@ -4245,9 +4378,12 @@ host._bound = true;
       if(periodEl) periodEl.value = '';
       if(submitBtn) submitBtn.textContent = 'ثبت قرض';
       if(cancelBtn) cancelBtn.style.display = 'none';
+      try{ if(resetBtn) resetBtn.style.display = ''; }catch{}
       form.classList.remove('editing');
       refreshLoansTable();
       refreshPaysTable();
+      try{ refreshLoansCards && refreshLoansCards(); }catch{}
+      try{ updateSummary(); }catch{}
       // Scroll to affected row and highlight (new or edited)
       const targetId = createdId || editedIdLocal;
       if(targetId){
@@ -4257,6 +4393,16 @@ host._bound = true;
           row.classList.add('flash-success');
           setTimeout(()=> row.classList.remove('flash-success'), 2000);
         }
+        // Also try to highlight the card if visible in cards grid
+        try{
+          const card = document.querySelector(`.loan-card[data-id="${targetId}"]`);
+          if(card){
+            card.scrollIntoView({ behavior:'smooth', block:'nearest' });
+            const prev = card.style.boxShadow;
+            card.style.boxShadow = '0 0 0 2px var(--purple) inset';
+            setTimeout(()=>{ try{ card.style.boxShadow = prev || ''; }catch{} }, 1800);
+          }
+        }catch{}
       }
     });
 
