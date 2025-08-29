@@ -27,6 +27,8 @@
       wrap.addEventListener('click', (e)=>{ if(e.target===wrap){ e.stopPropagation(); } });
     });
   }
+  // Expose for external callers (e.g., inline handlers/tests)
+  try{ if(typeof window!=='undefined'){ window.openPaymentFormForLoan = openPaymentFormForLoan; } }catch{}
   // Inject a persistent CSS override to ensure datepicker popups stay above modals
   (function dk_injectDatepickerStyle(){
     try{
@@ -608,42 +610,7 @@
           }
         }
       }catch{}
-      // Proceed to render; fallback helper _bothDatesHTML handles when bothDatesHTML is not ready
-      // Ensure a small status filter bar for cards exists
-      try{
-        const barId = 'cardsStatusBar';
-        let bar = document.getElementById(barId);
-        if(!bar){
-          bar = document.createElement('div');
-          bar.id = barId; bar.className = 'cards-status-bar';
-          bar.style.margin = '0 0 10px';
-          const mk = (key,label)=>{
-            const active = (uiFilters.status===key)? ' active' : '';
-            const kAttr = (key||'');
-            return `<span class="sum-chip${active}" data-status="${kAttr}" role="button" tabindex="0"><span class="ico" aria-hidden="true">${key==='overdue'?'⏰': key==='awaiting'?'⌛': key==='open'?'▶': key==='zero'?'✔':'🔄'}</span><span>${label}</span></span>`;
-          };
-          bar.innerHTML = [
-            mk('', 'همه'),
-            mk('overdue','دیرکرد'),
-            mk('awaiting','در انتظار دریافت اصل پول'),
-            mk('open','باز'),
-            mk('zero','اقساط تمام شد')
-          ].join('');
-          host.parentElement?.insertBefore(bar, host);
-          const handler = (ev)=>{
-            const t = ev.target.closest('.sum-chip'); if(!t) return;
-            const k = t.getAttribute('data-status')||'';
-            uiFilters.status = (uiFilters.status===k)? '' : k;
-            try{ document.querySelectorAll('#cardsStatusBar .sum-chip').forEach(n=> n.classList.remove('active')); }catch{}
-            t.classList.add('active');
-            try{ refreshLoansTable(); refreshPaysTable(); }catch{}
-            refreshLoansCards();
-            try{ updateSummary(); }catch{}
-          };
-          bar.addEventListener('click', handler);
-          bar.addEventListener('keydown', (ev)=>{ if(ev.key==='Enter' || ev.key===' '){ ev.preventDefault(); handler(ev); } });
-        }
-      }catch{}
+      // No inline status bar in cards view (filters live only in the top summary chips)
       let loans = [];
       try{
         if(typeof getVisibleLoansForTable === 'function'){
@@ -652,12 +619,21 @@
           loans = Array.isArray(state?.loans)? state.loans.filter(l=> String(l.status||'')!=='closed') : [];
         }
       }catch(e){ console.error('[DK][cards] load loans failed:', e); loans = []; }
-      try{ dbg('[DK][cards] building cards, items =', loans.length); }catch{}
+      // Use exactly the list from getVisibleLoansForTable (already filtered by uiFilters)
+      try{ dbg('[DK][cards] building cards, status=', uiFilters?.status||'', 'items =', loans.length); }catch{}
       const rows = loans.map(loan=>{
         try{
-          // basic category based on status
-          const cat = (function(){ const s=(loan?.status||'').toLowerCase(); if(s==='awaiting') return 'awaiting'; if(s==='closed'||s==='archived'||s==='zero') return 'zero'; return 'open'; })();
-          const catFa = (cat==='overdue' ? 'دیرکرد' : (cat==='awaiting' ? 'در انتظار اصل پول' : (cat==='zero' ? 'اقساط تمام شد' : 'باز')));
+          // Category for card, aligned with what user sees in the status row
+          const cat = (function(){
+            try{
+              const s = String(loan?.status||'').toLowerCase();
+              if(remInstNum===0) return 'zero';
+              if(s==='awaiting') return 'awaiting';
+              if(isOverdue) return 'overdue';
+              return 'open';
+            }catch{ return 'open'; }
+          })();
+          const catFa = statusLabel(cat);
           const startRaw = loan.startDate || loan.start || loan.startDateAlt || loan.startIso || '';
           const repayRaw = loan.repaymentDate || loan.repayDate || loan.payoffDate || loan.repaymentDateAlt || '';
           let startIso = dk_coerceISO(startRaw) || (function(){ try{ return startRaw? toISO(startRaw):''; }catch{ return ''; } })();
@@ -715,8 +691,13 @@
           try{ dbg('[DK][cards][status]', loan.id, { isOverdue, needResolve, overdueMonths, status:String(loan.status||'') }); }catch{}
           // Build status with local overdue detection (more reliable than table)
           const statusHTML = (function(){
+            try{
             const parts = [];
             const todayISO = (new Date()).toISOString().slice(0,10);
+            // If no installments remain, show 'done' immediately
+            if(remInstNum===0){
+              return `<div class="badges-left"><span class="badge done">${statusLabel('zero')}</span></div>`;
+            }
             // Simple approach: if table shows overdue badge, copy it
             const hasRemainingInst = remInstNum > 0;
             let hasOverdueInTable = false;
@@ -746,37 +727,33 @@
                 actualOverdueMonths = Math.max(1, months|0);
               }catch{}
             }
-            
-            // Collect badges for left side
+
+            // Build badges for status row
             const badges = [];
-            if(hasOverdueInTable){ badges.push(`<span class=\"badge warn\">${overdueTextFromTable}</span>`); }
-            else if(isActuallyOverdue && actualOverdueMonths>0){
-              const faMonths = (typeof vj_toFaDigits==='function')? vj_toFaDigits(String(actualOverdueMonths)) : String(actualOverdueMonths);
-              badges.push(`<span class=\"badge warn\">${faMonths} ماه دیرکرد</span>`);
-            }
-            
-            // Add status badges from table and loan status
+            // reflect derived category first
             try{
-              const row = document.querySelector(`#loansTable tbody tr[data-id="${loan.id}"]`);
-              const hasAwait = !!row?.querySelector('.badge.awaiting');
-              const hasDone = !!row?.querySelector('.badge.done');
-              
-              // Always show status badges in status row (no duplicate check needed since top badge removed)
-              const s = String(loan?.status||'').toLowerCase();
-              if(s==='awaiting' || hasAwait){ badges.push('<span class=\"badge awaiting\">در انتظار اصل پول</span>'); }
-              if((s==='closed' || s==='zero') || hasDone){ badges.push('<span class=\"badge done\">اقساط تمام شد</span>'); }
+              if(cat==='zero') badges.push('<span class="badge done">'+statusLabel('zero')+'</span>');
+              else if(cat==='awaiting') badges.push('<span class="badge awaiting">'+statusLabel('awaiting')+'</span>');
             }catch{}
-            
-            // Left side badges
-            const leftSide = badges.length > 0 ? `<div class=\"badges-left\">${badges.join('')}</div>` : '<div class=\"badges-left\">باز</div>';
-            
-            // Right side button
-            let rightSide = '';
-            if(canOps && (isActuallyOverdue || (needResolve && sStat!=='awaiting' && sStat!=='zero'))){
-              rightSide = `<button class="btn small resolve" data-act="resolve" data-id="${loan.id}"><span class="ico">⏰</span><span>رسیدگی</span></button>`;
-            }
-            
-            const finalHTML = `${leftSide}${rightSide ? rightSide : ''}`;
+            // overdue badge from table or derived
+            try{
+              if(hasOverdueInTable){ badges.push(`<span class="badge warn">${overdueTextFromTable}</span>`); }
+              else if(isActuallyOverdue && actualOverdueMonths>0){
+                const faMonths = (typeof vj_toFaDigits==='function')? vj_toFaDigits(String(actualOverdueMonths)) : String(actualOverdueMonths);
+                badges.push(`<span class="badge warn">${faMonths} ماه دیرکرد</span>`);
+              }
+            }catch{}
+            // Add from table status if not already
+            try{
+              const row2 = document.querySelector(`#loansTable tbody tr[data-id="${loan.id}"]`);
+              const hasAwait = !!row2?.querySelector('.badge.awaiting');
+              const hasDone = !!row2?.querySelector('.badge.done');
+              const s = String(loan?.status||'').toLowerCase();
+              if((s==='awaiting' || hasAwait) && !badges.some(b=> b.includes('badge awaiting'))){ badges.push('<span class="badge awaiting">'+statusLabel('awaiting')+'</span>'); }
+              if(((s==='closed' || s==='zero') || hasDone) && !badges.some(b=> b.includes('badge done'))){ badges.push('<span class="badge done">'+statusLabel('zero')+'</span>'); }
+            }catch{}
+
+            // finalHTML will be composed after leftSide/rightSide are defined below
             
             // Check for pending badges
             let hasPendingInTable = false;
@@ -862,10 +839,30 @@
               }, 300);
             }
             
+            const leftSide = badges.length > 0
+              ? `<div class="badges-left">${badges.join('')}</div>`
+              : `<div class="badges-left">${statusLabel(cat)}</div>`;
+            let rightSide = '';
+            // Show resolve when:
+            // - overdue (pay due)
+            // - all installments are paid (type-2 resolve)
+            // - awaiting principal (robust: status or cat or table badge)
+            const hasAwaitingBadge = badges.some(b=> b.includes('badge awaiting'));
+            const hasOverdueBadge = badges.some(b=> b.includes('badge warn'));
+            const hasDoneBadge    = badges.some(b=> b.includes('badge done'));
+            if(canOps){
+              rightSide = `<button class="btn small resolve" data-act="resolve" data-id="${loan.id}"><span class="ico">⏰</span><span>رسیدگی</span></button>`;
+            }
+            const finalHTML = `${leftSide}${rightSide ? rightSide : ''}`;
             return finalHTML;
+            }catch(err){
+              try{ console.error('[DK][cards][statusHTML] fail', err); }catch{}
+              // Fallback minimal status row to avoid breaking card rendering
+              return `<div class="badges-left">${statusLabel(cat)}</div>`;
+            }
           })();
           return `
-            <div class="loan-card lc-v2" data-id="${loan.id}" data-cat="${cat}" title="${loan.borrower||''}">
+            <div class="loan-card lc-v2" data-id="${loan.id}" data-cat="${cat}" data-label="${catFa}" title="${loan.borrower||''}">
               ${badge}
               <div class="lc-title-center">جزئیات آیتم</div>
               <div class="lc-info">
@@ -912,6 +909,12 @@
         host.innerHTML = rows || '';
       }
       try{ dbg('[DK][cards] render complete, count =', loans.length); }catch{}
+      // Ensure print button exists on each card (top-left)
+      try{
+        if(window.PrintCard && typeof window.PrintCard.init==='function') window.PrintCard.init();
+        const cards = Array.from(host.querySelectorAll('.loan-card'));
+        cards.forEach(c=>{ try{ window.PrintCard && typeof window.PrintCard.ensureButton==='function' && window.PrintCard.ensureButton(c); }catch{} });
+      }catch{}
       // Update equal heights when needed
       (function(){
         try{
@@ -1021,25 +1024,45 @@
             // نرمال‌سازی: در برخی کارت‌ها هنوز data-act="loan-pay" است؛ آن را به "resolve" نگاشت می‌کنیم
             if(act==='loan-pay') act = 'resolve';
 
-            // اگر دیرکرد وجود دارد، دکمه «رسیدگی» باید مستقیماً فرم ثبت پرداخت را باز کند
+            // رفتار مستقیم دکمه «رسیدگی» (بدون تکیه به جدول)
             if(act==='resolve'){
               try{
+                // تشخیص دیرکرد
                 const cardEl = btn.closest('.loan-card');
                 const hasOverdueBadge = !!cardEl?.querySelector('.status-badges .badge.warn');
                 let isOverdue = hasOverdueBadge;
-                if(!isOverdue){
-                  try{
-                    const d = computeLoanDerived(loan);
-                    const today = new Date().toISOString().slice(0,10);
-                    isOverdue = (Number(d && d.balance)>0) && d && d.nextDue && d.nextDue < today;
-                  }catch{}
-                }
-                try{ console.debug('[DK][cards] resolve click', { id, hasOverdueBadge, isOverdue }); }catch{}
+                let rem0 = false;
+                let awaiting = false;
+                try{
+                  const d = computeLoanDerived(loan) || {};
+                  const today = new Date().toISOString().slice(0,10);
+                  isOverdue = isOverdue || ((Number(d.balance)>0) && d.nextDue && d.nextDue < today);
+                  const r = Number(d.remainingInstallments||0);
+                  rem0 = (r===0);
+                }catch{}
+                try{
+                  // Robust awaiting detection: from loan.status or card DOM (badge/dataset)
+                  const s = String(loan.status||'').toLowerCase();
+                  const catAttr = cardEl?.dataset?.cat || '';
+                  const hasAwaitBadge = !!cardEl?.querySelector('.status-badges .badge.awaiting');
+                  awaiting = (s==='awaiting') || (catAttr==='awaiting') || hasAwaitBadge;
+                }catch{}
+                try{ console.debug('[DK][cards] resolve click', { id, isOverdue, rem0, awaiting }); }catch{}
+
+                // سیاست: 
+                // - دیرکرد: فرم پرداخت را باز کن
+                // - اقساط تمام شد یا awaiting: تسویه/رسیدگی نوع ۲
                 if(isOverdue){
-                  try{ console.debug('[DK][cards] resolve -> delegate loan-pay', id); }catch{}
-                  try{ clickTableAction('loan-pay', id); }catch(e){ console.warn('[DK][cards] delegate loan-pay failed', e); }
+                  try{ openPaymentFormForLoan(id); }catch(e){ console.warn('[DK][cards] openPaymentFormForLoan failed', e); }
                   return;
                 }
+                if(rem0 || awaiting){
+                  try{ await resolveZeroInstallments(id); }catch(e){ console.warn('[DK][cards] resolveZeroInstallments failed', e); }
+                  return;
+                }
+                // پیش‌فرض: تلاش برای مسیر جدول (fallback)
+                try{ clickTableAction('resolve', id); }catch{}
+                return;
               }catch{}
             }
 
@@ -1079,6 +1102,8 @@ host._bound = true;
       }
     }catch{}
   }
+  // Expose for external callers (summary chips, modules)
+  try{ if(typeof window!== 'undefined'){ window.refreshLoansCards = refreshLoansCards; } }catch{}
 
   // View toggle between table and cards, persisted in localStorage
   function bindLoansViewToggle(){
@@ -1089,7 +1114,12 @@ host._bound = true;
       const card = (btnT && btnT.closest('.card')) || (btnC && btnC.closest('.card')) || document;
       const wrap = card.querySelector('.table-wrap');
       const cards = card.querySelector('#loansCards');
-      if(!btnT || !btnC || !wrap || !cards) return;
+      // Cards-only mode: no toggles/wrap present -> just render cards and exit
+      if(cards && (!btnT || !btnC || !wrap)){
+        try{ setTimeout(()=>{ try{ refreshLoansCards(); }catch{} }, 0); }catch{}
+        return;
+      }
+      if(!cards) return;
       const KEY = 'dkLoansView';
       const applyView = (v)=>{
         const isCards = (v==='cards');
@@ -2862,6 +2892,30 @@ host._bound = true;
     loans: { key: '', dir: 'asc' },
     pays:  { key: '', dir: 'asc' }
   };
+  // Expose filters for debugging in console
+  try{ if(typeof window!=='undefined'){ window.uiFilters = uiFilters; } }catch{}
+
+  // Unified Persian label for each status (use everywhere: cards, chips, summaries)
+  function statusLabel(cat){
+    switch(cat){
+      case 'overdue': return 'دیرکرد';
+      case 'awaiting': return 'در انتظار دریافت اصل پول';
+      case 'zero': return 'اقساط تمام شد';
+      default: return 'باز';
+    }
+  }
+  // Expose for any late-bound callers
+  try{ if(typeof window!=='undefined'){ window.statusLabel = statusLabel; } }catch{}
+
+  // Debug helper: log current filters and category counts
+  function logFilterState(where){
+    try{
+      const loans = Array.isArray(state?.loans) ? state.loans : [];
+      const counts = { overdue:0, awaiting:0, open:0, zero:0 };
+      loans.forEach(l=>{ try{ const d=computeLoanDerived(l)||{}; const c=categorizeLoan(l,d); if(counts[c]!=null) counts[c]++; }catch{} });
+      console.debug('[DK][filters]', where||'', { uiFilters: { ...uiFilters }, counts });
+    }catch{}
+  }
   // Archive lock state (UI only)
   let archiveUnlocked = false;
 
@@ -2890,7 +2944,21 @@ host._bound = true;
       loans = withD.map(row=>row.loan);
     }
     // Exclude archived (closed) loans from main table
-    return loans.filter(l=> String(l.status||'') !== 'closed');
+    const vis = loans.filter(l=> String(l.status||'') !== 'closed');
+    try{ console.debug('[DK][visibleLoans][table]', { total: loansAll.length, afterCreditor: withD.length, final: vis.length, filter: { ...uiFilters } }); }catch{}
+    return vis;
+  }
+  try{ if(typeof window!=='undefined'){ window.getVisibleLoansForTable = getVisibleLoansForTable; } }catch{}
+
+  // Base visible loans (without status filter), used for summary counters
+  function getVisibleLoansBase(){
+    const loansAll = state.loans || [];
+    let loans = uiFilters.creditor
+      ? loansAll.filter(l=> (String(l.creditor||'').trim() === uiFilters.creditor))
+      : loansAll.slice();
+    // Exclude archived (closed)
+    loans = loans.filter(l=> String(l.status||'') !== 'closed');
+    return loans.map(l=>({ loan:l, d: computeLoanDerived(l)||{} }));
   }
 
   // Unified categorization used by chips, filtering and table rows
@@ -2898,10 +2966,15 @@ host._bound = true;
     try{
       const today = new Date().toISOString().slice(0,10);
       const remInstNum = Number(d && d.remainingInstallments)||0;
-      const overdue = (Number(d && d.balance)>0) && d && d.nextDue && d.nextDue < today;
-      if(String(loan.status||'')==='awaiting') return 'awaiting';
-      if(overdue) return 'overdue';
-      if(remInstNum===0 && String(loan.status||'')!=='closed') return 'zero';
+      const balance = Number(d && d.balance)||0;
+      const hasNextDue = !!(d && d.nextDue);
+      const isOverdue = (balance>0) && hasNextDue && String(d.nextDue) < today;
+      const s = String(loan.status||'').toLowerCase();
+      // Priority: awaiting > zero-installments > overdue > open
+      if(s==='awaiting') return 'awaiting';
+      // If all installments are paid, treat as 'zero' (even if nextDue is past)
+      if(remInstNum===0 && s!=='closed') return 'zero';
+      if(isOverdue) return 'overdue';
       return 'open';
     }catch{ return 'open'; }
   }
@@ -3085,11 +3158,7 @@ host._bound = true;
             <div class="gh-left">
               <div class="gh-borrower">${loan.borrower||'—'}</div>
               <div class="gh-cred small">${(loan.creditor && String(loan.creditor).trim()) || '—'}</div>
-            </div>
-            <div class="gh-mid">
-              <div class="gh-count small">${toFaDigits(String(items.length))} پرداخت</div>
-              <div class="gh-status">${headerBadge}</div>
-              ${needResolveGrp && canOpsGrp ? `<button class="btn small resolve" data-act="p-resolve" data-loan="${loan.id}"><span class="ico">⏰</span><span>رسیدگی</span></button>` : ''}
+              <div class="badges-left">${statusLabel(cat)}</div>
             </div>
             <div class="gh-right small">مانده اصل: ${fmtTom(Number(loan.principal||0))} تومان — مانده فعلی: ${balanceTxt}</div>
           </div>
@@ -3408,6 +3477,12 @@ host._bound = true;
     // Grouped status chips (order: overdue → awaiting → open → zeroInst)
     const elStatus = document.getElementById('sumByStatus');
     if(elStatus){
+      // Recompute counters from the same base set used by cards/table (creditor-applied, exclude closed)
+      let cntOverdue=0, cntAwaiting=0, cntOpen=0, cntZero=0;
+      try{
+        const base = getVisibleLoansBase();
+        base.forEach(row=>{ try{ const c=categorizeLoan(row.loan, row.d); if(c==='overdue') cntOverdue++; else if(c==='awaiting') cntAwaiting++; else if(c==='zero') cntZero++; else cntOpen++; }catch{} });
+      }catch{}
       const mk = (key, baseLabel, count)=>{
         const active = uiFilters.status===key ? ' active' : '';
         const disabled = count<=0 ? ' disabled' : '';
@@ -3416,14 +3491,15 @@ host._bound = true;
         const label = `${baseLabel} ${toFaDigits(String(count))} مورد`;
         return `<span class="sum-chip${active}${disabled}" data-status="${key}"${attrs}><span class="ico" aria-hidden="true">${ico}</span><span>${label}</span></span>`;
       };
-      const allActive = uiFilters.status==='' ? ' active' : '';
+      const allActive = uiFilters.status===''
+        ? ' active' : '';
       const allChip = `<span class="sum-chip${allActive}" data-status="" role="button" tabindex="0"><span class="ico" aria-hidden="true">🔄</span><span>همه</span></span>`;
       const html = [
         allChip,
-        mk('overdue', 'دیرکرد', cntOverdue),
-        mk('awaiting', 'در انتظار دریافت اصل پول', cntAwait),
-        mk('open', 'باز', cntOpen),
-        mk('zero', 'اقساط تمام شد', cntZero)
+        mk('overdue', statusLabel('overdue'), cntOverdue),
+        mk('awaiting', statusLabel('awaiting'), cntAwaiting),
+        mk('open', statusLabel('open'), cntOpen),
+        mk('zero', statusLabel('zero'), cntZero)
       ].join('');
       elStatus.innerHTML = html;
       if(!elStatus._bound){
@@ -3433,6 +3509,12 @@ host._bound = true;
           const k = t.getAttribute('data-status')||'';
           uiFilters.status = (uiFilters.status===k)? '' : k;
           refreshLoansTable(); refreshPaysTable(); try{ refreshLoansCards(); }catch{} updateSummary();
+          // Sync active state to cards bar as well
+          try{
+            document.querySelectorAll('#cardsStatusBar .sum-chip').forEach(n=> n.classList.remove('active'));
+            const tgt = document.querySelector(`#cardsStatusBar .sum-chip[data-status="${uiFilters.status}"]`) || document.querySelector('#cardsStatusBar .sum-chip[data-status=""]');
+            tgt?.classList.add('active');
+          }catch{}
           const lo = document.querySelector('#loansTable'); lo?.scrollIntoView({ behavior:'smooth', block:'start' });
         };
         elStatus.addEventListener('click', handler);

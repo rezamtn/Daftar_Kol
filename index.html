@@ -193,35 +193,8 @@
 
     <section class="card">
       <h2>📋 لیست قرض‌ها</h2>
-      <div class="table-toolbar" aria-label="نمایش لیست">
-        <div class="view-toggle" role="tablist" aria-label="نمای نمایش">
-          <button type="button" id="viewTableBtn" class="btn small" role="tab" aria-selected="true">نمای جدول</button>
-          <button type="button" id="viewCardsBtn" class="btn small ghost" role="tab" aria-selected="false">نمای کارت</button>
-        </div>
-      </div>
-      <div class="table-wrap">
-        <table id="loansTable">
-          <thead>
-            <tr>
-              <th>بستانکار</th>
-              <th>گیرنده</th>
-              <th>شروع</th>
-              <th>اصل (تومان)</th>
-              <th>سود ماهانه</th>
-              <th>مدت (ماه)</th>
-              <th>نحوه پرداخت سود</th>
-              <th>سود پرداختی (متناسب با نحوه پرداخت)</th>
-              <th>مانده اصل</th>
-              <th>تسویه نهایی</th>
-              <th>توضیحات</th>
-              <th>عملیات</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-      <!-- Cards view (hidden by default) -->
-      <div id="loansCards" class="cards-grid" style="display:none" aria-live="polite"></div>
+      <!-- Only cards view -->
+      <div id="loansCards" class="cards-grid" aria-live="polite"></div>
     </section>
 
     
@@ -258,44 +231,9 @@
         </div>
       </form>
 
-      <div class="pay-filters" aria-label="فیلتر پرداخت‌ها">
-        <label>گیرنده
-          <input id="payFilterBorrower" placeholder="همه" />
-        </label>
-        <label>نوع پرداخت
-          <select id="payFilterType">
-            <option value="all">همه</option>
-            <option value="interest">سود</option>
-            <option value="principal">اصل</option>
-          </select>
-        </label>
-        <label>از تاریخ
-          <input id="payFilterFrom" type="text" placeholder="—" />
-          <input id="payFilterFromAlt" type="hidden" />
-        </label>
-        <label>تا تاریخ
-          <input id="payFilterTo" type="text" placeholder="—" />
-          <input id="payFilterToAlt" type="hidden" />
-        </label>
-        <button id="payFilterClear" class="btn ghost small icon" title="پاک‌سازی فیلتر" aria-label="پاک‌سازی فیلتر">🧹 پاک‌سازی</button>
-      </div>
+      <!-- pay-filters removed per request -->
 
-      <div class="table-wrap" style="margin-top:10px">
-        <table id="paymentsTable">
-          <thead>
-            <tr>
-              <th>گیرنده</th>
-              <th>تاریخ پرداخت</th>
-              <th>نوع</th>
-              <th>مبلغ (تومان)</th>
-              <th>اقساط باقی‌مانده</th>
-              <th>مانده اصل پس از پرداخت</th>
-              <th>عملیات</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
+      <!-- paymentsTable removed per request -->
     </section>
 
     <!-- Archive card -->
