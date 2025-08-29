@@ -445,8 +445,9 @@
       function updateExpectedShares(){
         try{
           setJointShareLabels();
-          var hasJoint = !!(document.getElementById('principalSaraInput') && document.getElementById('principalRezaInput'));
-          if(!hasJoint) return;
+          // Only apply split math when joint mode is actually active
+          var isJoint = !!document.body && document.body.classList.contains('joint-mode');
+          if(!isJoint) return;
           var data = updateTotalFromSplit()||{nS:0,nR:0,sum:0};
           var rateMonthly = parseDecimalFa(document.getElementById('rateMonthlyPct')?.value||'0');
           if(!rateMonthly){
@@ -460,7 +461,9 @@
           var expectedTotal = Math.max(0, Math.round(data.sum * (rateMonthly/100) * k));
           var shareS = data.sum>0 ? Math.round(expectedTotal * (data.nS/data.sum)) : 0;
           var shareR = data.sum>0 ? Math.round(expectedTotal * (data.nR/data.sum)) : 0;
-          var ei = document.getElementById('expectedInterestAmount'); if(ei) ei.value = faFormatInt(expectedTotal);
+          var ei = document.getElementById('expectedInterestAmount');
+          // Do NOT override main expected interest unless user actually provided a split (>0)
+          if(ei && data.sum>0) ei.value = faFormatInt(expectedTotal);
           var eiS = document.getElementById('expectedInterestSara'); if(eiS) eiS.value = faFormatInt(shareS);
           var eiR = document.getElementById('expectedInterestReza'); if(eiR) eiR.value = faFormatInt(shareR);
         }catch{}

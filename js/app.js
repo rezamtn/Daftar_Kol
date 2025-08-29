@@ -3057,7 +3057,8 @@ host._bound = true;
     const monthlyRate = toNum(loan.rateMonthlyPct)/100;
     const cycleInterest = Math.round(balance * monthlyRate * toNum(loan.interestEveryMonths));
     // expected payout by selected payout mode
-    const k = mode===0 ? (parseInt(String(toNum(loan.interestEveryMonths)||0),10)||0) : mode; // 0 = at maturity -> use total months field available
+    // For 'at maturity' we must multiply by the total duration months, not 1 month interval
+    const k = mode===0 ? (durationMonths||0) : (mode||0);
     const expectedPayoutByMode = Math.round(balance * monthlyRate * (k||0));
 
     const remainingInstallments = Math.max(0, totalInstallments - paidInstallments);
@@ -4025,28 +4026,14 @@ host._bound = true;
       // Monthly rate (%): parse decimal safely from FA/EN
       const mRatePct = parseFloat(normalizeDecimalAscii(mEl?.value||''));
       const mRate = isFinite(mRatePct) ? (mRatePct/100) : 0;
-      // Mode and duration
-      const mode = parseInt(String(payoutSel?.value||'1'),10) || 1;
+      // Mode and duration (do NOT coerce 0 to 1)
+      let mode = parseInt(String(payoutSel?.value||'1'),10);
+      if(!isFinite(mode)) mode = 1;
       const durAscii = normalizeDigitsToAscii(String(periodEl?.value||'')).replace(/[^0-9]/g,'');
       const durationMonths = parseInt(durAscii||'0',10) || 0;
-      // For mode=0 (at maturity), if duration input is empty/incorrect, derive by dates
-      let k = mode;
-      if(mode===0){
-        let kByDates = 0;
-        try{
-          const sISO = (document.querySelector(IDS.startDateAlt)?.value||'') || toISO(document.querySelector(IDS.startDate)?.value||'');
-          const rISO = (document.querySelector(IDS.repaymentDateAlt)?.value||'') || toISO(document.querySelector(IDS.repaymentDate)?.value||'');
-          if(sISO && rISO){
-            const d1 = new Date(sISO); const d2 = new Date(rISO);
-            const y1 = d1.getFullYear(), m1 = d1.getMonth()+1, dd1 = d1.getDate();
-            const y2 = d2.getFullYear(), m2 = d2.getMonth()+1, dd2 = d2.getDate();
-            let months = (y2 - y1)*12 + (m2 - m1);
-            if(dd2 >= dd1) months += 1;
-            kByDates = Math.max(1, months|0);
-          }
-        }catch{}
-        k = Math.max(durationMonths||0, kByDates||0);
-      }
+      // For mode=0 (at maturity), use EXACT entered duration months.
+      // This avoids inclusive-by-dates off-by-one when day-of-month matches.
+      const k = (mode===0) ? (durationMonths||0) : mode;
       // 0 => at maturity = whole duration
       // label text
       const labelText = mode===1 ? 'سود قابل انتظار پرداختی ماهانه' : mode===2 ? 'سود قابل انتظار پرداختی دو ماهه' : mode===3 ? 'سود قابل انتظار پرداختی سه ماهه' : 'سود قابل انتظار پرداختی در سررسید';
