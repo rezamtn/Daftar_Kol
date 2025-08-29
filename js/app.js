@@ -3546,6 +3546,7 @@ host._bound = true;
             uiFilters.creditor = (uiFilters.creditor === cred) ? '' : cred;
             refreshLoansTable();
             refreshPaysTable();
+            try{ if(typeof refreshLoansCards==='function') refreshLoansCards(); }catch{}
             updateSummary();
             // auto scroll to loans list
             const lo = document.querySelector('#loansTable');
@@ -3561,6 +3562,7 @@ host._bound = true;
             uiFilters.creditor = (uiFilters.creditor === cred) ? '' : cred;
             refreshLoansTable();
             refreshPaysTable();
+            try{ if(typeof refreshLoansCards==='function') refreshLoansCards(); }catch{}
             updateSummary();
             const lo = document.querySelector('#loansTable');
             lo?.scrollIntoView({ behavior: 'smooth', block: 'start' });
