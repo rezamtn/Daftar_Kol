@@ -385,10 +385,6 @@
           var r = document.getElementById('principalRezaInput');
           var main = document.getElementById('principalInput');
           if(!s || !r) return;
-          // Do not override while editing an existing loan
-          var lf = document.getElementById('loanForm');
-          var isEditing = false;
-          try{ isEditing = !!( (lf && lf.classList && lf.classList.contains('editing')) || (window && window._dkEditingLoan) ); }catch{}
           var rawS = toAscii(s.value).replace(/[^0-9]/g,'');
           var rawR = toAscii(r.value).replace(/[^0-9]/g,'');
           var nS = parseInt(rawS||'0',10)||0;
@@ -396,10 +392,14 @@
           var sum = nS + nR;
           if(main){
             var currentRaw = toAscii(main.value).replace(/[^0-9]/g,'');
-            // Only mirror when not editing and user actually provided a split (>0)
-            if(!isEditing && sum>0 && currentRaw !== String(sum)){
+            if(sum===0){
+              if(currentRaw !== '' && currentRaw !== '0'){
+                main.value = '';
+                try{ main.dispatchEvent(new Event('input', { bubbles:true })); }catch{}
+              }
+            }else if(currentRaw !== String(sum)){
               main.value = faFormatInt(sum);
-              // Do NOT dispatch input here to prevent recursion
+              try{ main.dispatchEvent(new Event('input', { bubbles:true })); }catch{}
             }
           }
           return { nS:nS, nR:nR, sum:sum };
@@ -456,7 +456,8 @@
             if(ann){ rateMonthly = (Math.pow(1 + ann/100, 1/12) - 1) * 100; }
           }
           var every = parseInt(toAscii(document.getElementById('interestEveryMonths')?.value||'0').replace(/[^0-9]/g,''),10)||0;
-          var mode = parseInt(String(document.getElementById('interestPayoutMode')?.value||'1'),10)||1;
+          var mode = parseInt(String(document.getElementById('interestPayoutMode')?.value||'1'),10);
+          if(!isFinite(mode)) mode = 1;
           var k = (mode===0) ? every : mode;
           var expectedTotal = Math.max(0, Math.round(data.sum * (rateMonthly/100) * k));
           var shareS = data.sum>0 ? Math.round(expectedTotal * (data.nS/data.sum)) : 0;
