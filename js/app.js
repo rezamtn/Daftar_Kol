@@ -81,18 +81,6 @@
           const autoresize = ()=>{ try{ ta.style.height='auto'; ta.style.height = (ta.scrollHeight)+'px'; }catch{} };
           if(ta){ ta.addEventListener('input', autoresize); setTimeout(autoresize, 0); }
         }catch{}
-        // Debug grid placement for note row
-        try{
-          const lbl = wrap.querySelector('label:nth-of-type(4)'); // مبلغ، نوع، تاریخ، یادداشت -> 4th label
-          const ta = wrap.querySelector('#np-note');
-          if(lbl && ta){
-            const csL = getComputedStyle(lbl), csT = getComputedStyle(ta);
-            console.log('[DK][newPayModal][grid]', {
-              noteLabel: { gridColumnStart: csL.gridColumnStart, gridColumnEnd: csL.gridColumnEnd, text: lbl.textContent.trim() },
-              noteField: { gridColumnStart: csT.gridColumnStart, gridColumnEnd: csT.gridColumnEnd, width: ta.offsetWidth }
-            });
-          }
-        }catch{}
         const done = (val)=>{ try{ document.body.removeChild(wrap); }catch{} resolve(val); };
         wrap.querySelector('#np-cancel')?.addEventListener('click', ()=> done(null));
         // Amount formatting fa-IR with thousands separators
@@ -106,7 +94,6 @@
             if(presets && Number(presets.defaultAmount)>0){
               const n = Math.round(Number(presets.defaultAmount));
               inpAmt.value = nfFa ? nfFa.format(n) : toFa(String(n));
-              try{ console.log('[DK][newPayModal] prefill amount', n); }catch{}
             }
           }catch{}
           inpAmt.addEventListener('input', ()=>{

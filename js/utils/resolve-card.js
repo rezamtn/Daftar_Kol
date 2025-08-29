@@ -25,7 +25,6 @@
       ev.preventDefault(); ev.stopPropagation();
       const card = btn.closest('.loan-card');
       const id = btn.getAttribute('data-id') || (card && card.getAttribute('data-id')) || '';
-      try{ console.log('[DK][ResolveCard] click', { id }); }catch{}
       if(!id) return;
       const loan = getLoanById(id); if(!loan) return;
       // compute derived (always recompute locally to avoid stale values)
@@ -52,21 +51,17 @@
       try{ repayISO = toISO(loan.repaymentDate); }catch{}
       const baseDue = nextDue || repayISO || '';
       const isOverdue = (Number(remInst)>0) && baseDue && baseDue < todayISO();
-      try{ console.log('[DK][ResolveCard] derived', { remInst, nextDue, repayISO, baseDue, isOverdue }); }catch{}
       // action
       if(isOverdue){
-        try{ console.log('[DK][ResolveCard] action -> dk_quickAddInterestPayment'); }catch{}
         try{ if(typeof window.dk_quickAddInterestPayment==='function'){ window.dk_quickAddInterestPayment(String(id)); return; } }catch{}
         // fallback to legacy form
         try{ if(typeof window.openPaymentFormForLoan==='function'){ window.openPaymentFormForLoan(String(id)); return; } }catch{}
       }
       if(Number(remInst)===0){
-        try{ console.log('[DK][ResolveCard] action -> resolveZeroInstallments'); }catch{}
         try{ if(typeof window.resolveZeroInstallments==='function'){ await window.resolveZeroInstallments(String(id)); return; } }catch{}
       }
       // Fallback: delegate to table action if available
       try{
-        console.log('[DK][ResolveCard] action -> table fallback');
         const sel = `#loansTable button[data-act="resolve"][data-id="${id}"]`;
         const tbtn = document.querySelector(sel); if(tbtn){ tbtn.click(); return; }
       }catch{}
