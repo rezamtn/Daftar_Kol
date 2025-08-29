@@ -18,7 +18,19 @@
       }catch{}
       const css = `
         .loan-card.lc-v2{ position:relative; }
-        .loan-card .btn.print-btn{ position:absolute; top:6px; left:6px; z-index:2; opacity:.9 }
+        /* Move button up to increase gap from header content */
+        .loan-card .btn.print-btn{
+          position:absolute; top:8px; left:12px; z-index:2; opacity:.96;
+          /* subtle background to improve affordance */
+          background: rgba(167,139,250,.14) !important; /* violet */
+          border:1px solid rgba(167,139,250,.45) !important;
+          color:#eae4ff !important;
+          border-radius:10px !important;
+          box-shadow: 0 6px 18px rgba(0,0,0,.25), 0 0 0 1px rgba(167,139,250,.20) inset !important;
+          backdrop-filter: saturate(110%);
+        }
+        .loan-card .btn.print-btn:hover{ filter:none; opacity:1; background: rgba(167,139,250,.20) !important; border-color: rgba(167,139,250,.60) !important; }
+        .loan-card .btn.print-btn:focus-visible{ outline:none; box-shadow:0 0 0 3px rgba(167,139,250,.35), 0 6px 18px rgba(0,0,0,.25) !important; }
         .loan-card .btn.print-btn .ico{ display:inline-block; margin-inline-end:6px }
         .loan-card .btn.print-btn:hover{ opacity:1 }
         /* Snapshot theme (keep RTL and inherit badge colors) */
