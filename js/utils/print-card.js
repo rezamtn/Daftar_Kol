@@ -7,13 +7,22 @@
     if(cssInjected) return; cssInjected = true;
     try{
       const id = 'dk-print-card-css'; if(document.getElementById(id)) return;
+      // Load a Persian webfont (Vazirmatn) for correct RTL shaping in snapshots
+      try{
+        if(!document.getElementById('dk-vazirmatn-font')){
+          const l = document.createElement('link');
+          l.id='dk-vazirmatn-font'; l.rel='stylesheet';
+          l.href='https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;700;800&display=swap';
+          document.head.appendChild(l);
+        }
+      }catch{}
       const css = `
         .loan-card.lc-v2{ position:relative; }
         .loan-card .btn.print-btn{ position:absolute; top:6px; left:6px; z-index:2; opacity:.9 }
         .loan-card .btn.print-btn .ico{ display:inline-block; margin-inline-end:6px }
         .loan-card .btn.print-btn:hover{ opacity:1 }
-        /* Snapshot theme */
-        .loan-card.print-snapshot{ background:#ffffff !important; color:#0b1220 !important; border:1px solid #e2e8f0 !important; box-shadow:none !important; border-radius:12px !important }
+        /* Snapshot theme (keep RTL and inherit badge colors) */
+        .loan-card.print-snapshot{ background:#ffffff !important; color:#0b1220 !important; border:1px solid #e2e8f0 !important; box-shadow:none !important; border-radius:12px !important; direction:rtl; unicode-bidi: plaintext; font-family:'Vazirmatn', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif !important; font-variant-ligatures: contextual; }
         .loan-card.print-snapshot .lc-info{ background:transparent !important }
         .loan-card.print-snapshot .muted{ color:#334155 !important }
         .loan-card.print-snapshot .val{ color:#0b1220 !important }
@@ -28,8 +37,19 @@
         .loan-card.printing .lc-foot { display:none !important }
         /* Keep status badges visible, but hide any buttons inside */
         .loan-card.printing .status-badges .btn{ display:none !important }
-        .loan-card.print-snapshot .status-badges .badge{ display:inline-block !important; background:#0ea5e9 !important; color:#ffffff !important; padding:2px 8px; border-radius:10px; font-weight:600 }
-        .loan-card.print-snapshot .status-badges .badge.warn{ background:#dc3545 !important }
+        /* Print-optimized badges: solid high-contrast colors for readability on white */
+        .loan-card.print-snapshot .status-badges .badge{
+          display:inline-block !important; padding:3px 10px; border-radius:10px; font-weight:800; font-size:13px;
+          -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+          background:#e2e8f0 !important; color:#0b1220 !important; border:1px solid #94a3b8 !important;
+          font-family:'Vazirmatn', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif !important;
+          letter-spacing: 0 !important; word-spacing: 0 !important; white-space: nowrap !important;
+          text-rendering: optimizeLegibility;
+          font-feature-settings: "liga" 1, "calt" 1, "kern" 1;
+        }
+        .loan-card.print-snapshot .status-badges .badge.warn{ background:#fecaca !important; color:#7f1d1d !important; border-color:#ef4444 !important }
+        .loan-card.print-snapshot .status-badges .badge.awaiting{ background:#bae6fd !important; color:#0c4a6e !important; border-color:#38bdf8 !important }
+        .loan-card.print-snapshot .status-badges .badge.done{ background:#e9d5ff !important; color:#581c87 !important; border-color:#a78bfa !important }
         /* Ensure white background for inner containers */
         .loan-card.print-snapshot * { background-color:transparent !important; box-shadow:none !important }
       `;
@@ -60,15 +80,21 @@
     injectCss();
     try{
       const html2canvas = await loadHtml2Canvas();
+      // enforce RTL shaping during snapshot to keep Persian layout
+      const prevDir = cardEl.getAttribute('dir');
+      if(prevDir!=='rtl') cardEl.setAttribute('dir','rtl');
       cardEl.classList.add('print-snapshot','printing');
-      await new Promise(r=> setTimeout(r, 0));
-      const scale = Math.min(window.devicePixelRatio || 2, 3);
-      const canvas = await html2canvas(cardEl, { backgroundColor:'#ffffff', scale, useCORS:true, logging:false });
+      // wait for webfonts to be ready to avoid fallback glyphs/letter splitting
+      try{ if(document.fonts && document.fonts.ready) await Promise.race([document.fonts.ready, new Promise(res=>setTimeout(res,400))]); }catch{}
+      await new Promise(r=> setTimeout(r, 20));
+      const scale = 3; // max quality for crisp text
+      const canvas = await html2canvas(cardEl, { backgroundColor:'#ffffff', scale, useCORS:true, logging:false, letterRendering:true });
       const url = canvas.toDataURL('image/png');
       const id = cardEl.getAttribute('data-id') || 'card';
       const iso = new Date().toISOString().slice(0,10);
       const a = document.createElement('a'); a.href=url; a.download=`loan_${id}_${iso}.png`; document.body.appendChild(a); a.click(); a.remove();
       cardEl.classList.remove('print-snapshot','printing');
+      if(prevDir!==null) cardEl.setAttribute('dir', prevDir); else cardEl.removeAttribute('dir');
     }catch(err){ try{ console.error('[PrintCard] failed', err); }catch{} }
   };
 

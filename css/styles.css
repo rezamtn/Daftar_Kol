@@ -287,14 +287,37 @@ tr.flash-success { animation: flashGreen 2s ease-out 1; }
 /* Slightly stronger zebra for compact mode to aid scanning */
 .density-compact #loansTable tbody tr:nth-child(odd){ background: rgba(255,255,255,.035); }
 
-/* ---- Enhanced badges (Option F) ---- */
-/* Improve contrast and clarity of badges used in tables */
-.badge{ border-width:1.2px }
-.badge.good{ background:rgba(34,197,94,.16); color:#bef8cf; border-color:rgba(34,197,94,.45) }
-.badge.warn{ background:rgba(245,158,11,.16); color:#ffe29e; border-color:rgba(245,158,11,.48) }
-.badge.bad{ background:rgba(239,68,68,.16); color:#ffc6c6; border-color:rgba(239,68,68,.48) }
-.badge.awaiting{ background:rgba(20,184,166,.18); color:#a5fff2; border-color:rgba(20,184,166,.50) }
-.badge.done{ background:rgba(167,139,250,.18); color:#efe1ff; border-color:rgba(167,139,250,.55); font-weight:800 }
+/* ---- Unified modern badges ---- */
+.badge{
+  display:inline-flex; align-items:center; gap:6px;
+  padding:4px 10px; border-radius:999px; font-weight:700; font-size:12px;
+  border:1px solid rgba(148,163,184,.28);
+  background: linear-gradient(180deg, rgba(30,41,59,.75), rgba(15,23,42,.65));
+  color:#e5ecff;
+  box-shadow: 0 6px 18px rgba(0,0,0,.25), 0 0 0 1px rgba(148,163,184,.12) inset;
+  letter-spacing:.2px;
+}
+.badge .ico{ display:inline-block; font-size:12px; opacity:.95; }
+.badge.good{
+  background: linear-gradient(180deg, rgba(16,185,129,.22), rgba(5,150,105,.18));
+  color:#bbf7d0; border-color: rgba(16,185,129,.45);
+}
+.badge.warn{ /* overdue */
+  background: linear-gradient(180deg, rgba(220,53,69,.25), rgba(220,53,69,.18));
+  color:#ffd6d6; border-color: rgba(220,53,69,.55);
+}
+.badge.bad{
+  background: linear-gradient(180deg, rgba(239,68,68,.24), rgba(239,68,68,.18));
+  color:#ffc6c6; border-color: rgba(239,68,68,.5);
+}
+.badge.awaiting{ /* pending/awaiting */
+  background: linear-gradient(180deg, rgba(23,162,184,.22), rgba(23,162,184,.16));
+  color:#d1f4ff; border-color: rgba(23,162,184,.48);
+}
+.badge.done{
+  background: linear-gradient(180deg, rgba(167,139,250,.25), rgba(139,92,246,.18));
+  color:#f1e9ff; border-color: rgba(167,139,250,.55);
+}
 
 /* Archive table specific polish */
 #archiveTable th, #archiveTable td{padding:10px 12px; border-bottom:1px solid #1b2335; text-align:center}
@@ -422,12 +445,33 @@ tr.pay-group > td{padding:0; border-bottom:none}
 .group-head .gh-mid{display:flex; flex-direction:column; align-items:center; gap:6px}
 tr.pay-child td{background:transparent; border-bottom:1px dashed #1b2335}
 tr.pay-child:last-of-type td{border-bottom:1px solid #1b2335}
-.badge{display:inline-block; padding:2px 8px; border-radius:999px; border:1px solid var(--line); background:#14213a}
-.badge.good{background:rgba(34,197,94,.12); color:#bbf7d0; border-color:rgba(34,197,94,.35)}
-.badge.warn{background:rgba(245,158,11,.12); color:#fde68a; border-color:rgba(245,158,11,.35)}
-.badge.bad{background:rgba(239,68,68,.12); color:#fecaca; border-color:rgba(239,68,68,.35)}
-.badge.awaiting{background:rgba(20,184,166,.14); color:#99f6e4; border-color:rgba(20,184,166,.45)}
-.badge.done{background:rgba(167,139,250,.14); color:#e9d5ff; border-color:rgba(167,139,250,.45); font-weight:600}
+/* Override any legacy badge block with the unified design above */
+.badge{display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px}
+.badge.warn{color:#ffd6d6}
+.badge.awaiting{color:#d1f4ff}
+.badge.done{color:#f1e9ff}
+
+/* Stronger specificity for card status row to overpower old rules */
+.loan-card .status-badges .badge{
+  background: linear-gradient(180deg, rgba(30,41,59,.82), rgba(15,23,42,.72)) !important;
+  border-color: rgba(148,163,184,.34) !important;
+  color:#eaf1ff !important;
+}
+.loan-card .status-badges .badge.warn{
+  background: linear-gradient(180deg, rgba(220,53,69,.30), rgba(220,53,69,.22)) !important;
+  border-color: rgba(220,53,69,.60) !important;
+  color:#ffe1e1 !important;
+}
+.loan-card .status-badges .badge.awaiting{
+  background: linear-gradient(180deg, rgba(23,162,184,.26), rgba(23,162,184,.18)) !important;
+  border-color: rgba(23,162,184,.55) !important;
+  color:#e6fbff !important;
+}
+.loan-card .status-badges .badge.done{
+  background: linear-gradient(180deg, rgba(167,139,250,.30), rgba(139,92,246,.20)) !important;
+  border-color: rgba(167,139,250,.62) !important;
+  color:#faf7ff !important;
+}
 .small{font-size:12px; color:var(--muted)}
 
 /* Payment filters toolbar */
@@ -640,6 +684,32 @@ th.sort-desc .sort-ind::after{content:"▼"}
 
 /* In cards make progress bars slimmer to fit neatly */
 .loan-card .mini-progress{ height:4px; border-width:1px; margin-top:2px }
+
+/* ---- Shared RTL two-column form utilities (modals & inline forms) ---- */
+.dk-form-grid-2col{
+  display:grid;
+  grid-template-columns: 80px 300px;
+  gap:8px 10px;
+  direction: rtl;
+}
+.dk-form-grid-2col .dk-form-label{
+  grid-column: 1 / 2;
+  justify-self: start; /* in RTL, start = right; keeps label flush-right in its cell */
+  text-align: right;
+  direction: rtl;
+  margin:0; padding:0;
+}
+.dk-form-grid-2col .dk-form-control-rtl{
+  grid-column: 2 / 3;
+  width: 100%;
+  text-align: right;
+  direction: rtl;
+  background:#0f1522; color:#e5ecff; border:1px solid #2b364d; border-radius:8px; padding:6px 8px;
+}
+.dk-form-grid-2col .dk-form-control-row{
+  grid-column: 2 / 3;
+  display:flex; gap:6px; align-items:center;
+}
 .loan-card .mini-progress.remain{ border-width:1px }
 
 /* ---------------- Responsive ---------------- */

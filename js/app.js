@@ -42,8 +42,8 @@
       document.head.appendChild(st);
     }catch{}
   })();
-  // Create-payment modal (similar to edit, but empty defaults)
-  function dk_newPaymentModal(loanId){
+  // Create-payment modal (similar to edit, but supports presets)
+  function dk_newPaymentModal(loanId, presets){
     return new Promise((resolve)=>{
       try{
         const wrap = document.createElement('div');
@@ -52,19 +52,21 @@
         wrap.innerHTML = `
           <div class="modal" style="background:#111a2b; color:#e5ecff; border:1px solid #25324a; border-radius:12px; padding:16px; min-width:320px; max-width:92vw; box-shadow:0 20px 50px rgba(0,0,0,.5); direction:rtl; overflow:visible">
             <div style="font-weight:800; margin-bottom:10px">افزودن پرداخت</div>
-            <div style="display:grid; grid-template-columns: 100px 1fr; gap:8px 10px;">
-              <label>مبلغ</label><input id="np-amt" inputmode="numeric" style="background:#0f1522; color:#e5ecff; border:1px solid #2b364d; border-radius:8px; padding:6px 8px" />
-              <label>نوع</label>
-              <select id="np-type" style="background:#0f1522; color:#e5ecff; border:1px solid #2b364d; border-radius:8px; padding:6px 8px">
+            <div class="dk-form-grid-2col">
+              <label class="dk-form-label">مبلغ</label>
+              <input id="np-amt" inputmode="numeric" class="dk-form-control-rtl" />
+              <label class="dk-form-label">نوع</label>
+              <select id="np-type" class="dk-form-control-rtl">
                 <option value="interest" selected>سود</option>
                 <option value="principal">اصل</option>
               </select>
-              <label>تاریخ</label>
-              <div style="display:flex; gap:6px; align-items:center">
-                <input id="np-date-fa" readonly style="flex:1; background:#0f1522; color:#e5ecff; border:1px solid #2b364d; border-radius:8px; padding:6px 8px" placeholder="تاریخ شمسی" />
+              <label class="dk-form-label">تاریخ</label>
+              <div class="dk-form-control-row">
+                <input id="np-date-fa" readonly class="dk-form-control-rtl" style="flex:1" placeholder="تاریخ شمسی" />
                 <input id="np-date-iso" type="hidden" />
               </div>
-              <label>یادداشت</label><textarea id="np-note" rows="3" style="background:#0f1522; color:#e5ecff; border:1px solid #2b364d; border-radius:8px; padding:6px 8px"></textarea>
+              <label class="dk-form-label">یادداشت</label>
+              <textarea id="np-note" rows="2" class="dk-form-control-rtl" style="resize:none; overflow:hidden"></textarea>
             </div>
             <div id="np-err" class="small" style="color:#fb7185; min-height:18px; margin-top:8px"></div>
             <div class="modal-actions" style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px">
@@ -73,6 +75,24 @@
             </div>
           </div>`;
         document.body.appendChild(wrap);
+        // Auto-expand note textarea to show full content
+        try{
+          const ta = wrap.querySelector('#np-note');
+          const autoresize = ()=>{ try{ ta.style.height='auto'; ta.style.height = (ta.scrollHeight)+'px'; }catch{} };
+          if(ta){ ta.addEventListener('input', autoresize); setTimeout(autoresize, 0); }
+        }catch{}
+        // Debug grid placement for note row
+        try{
+          const lbl = wrap.querySelector('label:nth-of-type(4)'); // مبلغ، نوع، تاریخ، یادداشت -> 4th label
+          const ta = wrap.querySelector('#np-note');
+          if(lbl && ta){
+            const csL = getComputedStyle(lbl), csT = getComputedStyle(ta);
+            console.log('[DK][newPayModal][grid]', {
+              noteLabel: { gridColumnStart: csL.gridColumnStart, gridColumnEnd: csL.gridColumnEnd, text: lbl.textContent.trim() },
+              noteField: { gridColumnStart: csT.gridColumnStart, gridColumnEnd: csT.gridColumnEnd, width: ta.offsetWidth }
+            });
+          }
+        }catch{}
         const done = (val)=>{ try{ document.body.removeChild(wrap); }catch{} resolve(val); };
         wrap.querySelector('#np-cancel')?.addEventListener('click', ()=> done(null));
         // Amount formatting fa-IR with thousands separators
@@ -81,6 +101,14 @@
           const toFa = (s)=> (typeof vj_toFaDigits==='function'? vj_toFaDigits(String(s)) : String(s));
           const toAscii = (s)=> (typeof vj_normalizeDigits==='function'? vj_normalizeDigits(String(s)) : String(s));
           const nfFa = (typeof Intl!=='undefined' && Intl.NumberFormat) ? new Intl.NumberFormat('fa-IR') : null;
+          // Prefill amount if provided
+          try{
+            if(presets && Number(presets.defaultAmount)>0){
+              const n = Math.round(Number(presets.defaultAmount));
+              inpAmt.value = nfFa ? nfFa.format(n) : toFa(String(n));
+              try{ console.log('[DK][newPayModal] prefill amount', n); }catch{}
+            }
+          }catch{}
           inpAmt.addEventListener('input', ()=>{
             const ascii = toAscii(inpAmt.value).replace(/[^0-9]/g,'');
             if(!ascii){ inpAmt.value=''; return; }
@@ -96,8 +124,14 @@
           if(typeof initVanillaJdp==='function') initVanillaJdp('#np-date-fa', '#np-date-iso', null, { prefillToday:true, dashWhenEmpty:false, zIndex: 1000005 });
           try{ dk_liftDatepickers(); faEl.addEventListener('focus', ()=> setTimeout(()=> dk_liftDatepickers(), 0)); faEl.addEventListener('click', ()=> setTimeout(()=> dk_liftDatepickers(), 0)); }catch{}
           // Ensure ISO has a value even if user doesn't touch the field
-          try{ const isoEl = document.querySelector('#np-date-iso'); if(isoEl && !isoEl.value){ isoEl.value = new Date().toISOString().slice(0,10); } }catch{}
+          try{
+            const iso = (presets && presets.defaultDateISO) ? String(presets.defaultDateISO) : '';
+            const isoEl2 = document.querySelector('#np-date-iso');
+            if(isoEl2){ isoEl2.value = iso && /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : (isoEl2.value || new Date().toISOString().slice(0,10)); }
+          }catch{}
         }catch{}
+        // Prefill type if provided
+        try{ if(presets && presets.defaultType){ const tSel = wrap.querySelector('#np-type'); if(tSel){ tSel.value = presets.defaultType; } } }catch{}
         wrap.querySelector('#np-ok')?.addEventListener('click', ()=>{
           const toAscii = (s)=> (typeof vj_normalizeDigits==='function'? vj_normalizeDigits(String(s)) : String(s));
           const amt = toAscii(wrap.querySelector('#np-amt').value.trim()).replace(/[^0-9]/g,'');
@@ -222,6 +256,8 @@
       await infoFa('تاریخچه پرداخت', body, { okText:'بستن' });
     }catch{}
   }
+  // Expose for external callers (console/tests/buttons)
+  try{ if(typeof window!== 'undefined'){ window.openPaymentFormForLoan = openPaymentFormForLoan; } }catch{}
   try{ if(typeof window!=='undefined'){ window.dkShowPaysHistory = dk_showPaysHistoryModal; } }catch{}
   // Lightweight edit modal for a payment
   function dk_editPaymentModal(p){
@@ -482,6 +518,62 @@
     }catch{}
   }
   try{ if(typeof window!=='undefined'){ window.dk_addNewPayment = dk_addNewPayment; } }catch{}
+  // Quick interest payment flow for Resolve: compute default amount and open modal prefilled
+  function dk_quickAddInterestPayment(loanId){
+    try{
+      const loan = (Array.isArray(state?.loans)? state.loans:[]).find(l=> String(l.id)===String(loanId));
+      if(!loan) return;
+      const d = (function(){ try{ return computeLoanDerived(loan)||{}; }catch{ return {}; } })();
+      let amt = 0;
+      try{ amt = Number(d.expectedPayoutByMode||0) || Number(d.cycleInterest||0) || 0; }catch{}
+      // If derived amount is zero (e.g., due to Persian digits in inputs), compute robustly here
+      if(!(Number(amt)>0)){
+        try{
+          const normalizeDigitsLocal = (s)=>{
+            try{
+              return String(s)
+                .replace(/[\u06F0-\u06F9]/g, (d)=> String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))
+                .replace(/[\u0660-\u0669]/g, (d)=> String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
+                .replace(/،/g, ',');
+            }catch{ return String(s); }
+          };
+          const toAscii = (s)=>{ try{ const f = (typeof vj_normalizeDigits==='function')? vj_normalizeDigits : normalizeDigitsLocal; return f(String(s)); }catch{ return normalizeDigitsLocal(String(s)); } };
+          const toNum = (v)=>{ try{ const s = toAscii(v); const cleaned = s.replace(/[^0-9.\-]/g,''); const n = Number(cleaned.replace(/,/g,'')); return Number.isFinite(n)? n:0; }catch{ return Number(v)||0; } };
+          const pays = Array.isArray(state?.pays)? state.pays:[];
+          const principalPaid = pays.filter(p=> String(p.loanId)===String(loan.id) && String(p.type)==='principal').reduce((a,p)=> a + toNum(p.amount), 0);
+          const principal = toNum(loan.principal);
+          let balance = Math.max(0, principal - principalPaid);
+          // If balance computed 0 unexpectedly, fall back to full principal for interest calc
+          if(!(balance>0)) balance = principal;
+          const monthlyRate = toNum(loan.rateMonthlyPct)/100;
+          const modeVal = parseInt(String(toNum(loan.interestPayoutMode)||1),10) || 1; // 0..3
+          const k = modeVal===0 ? (parseInt(String(toNum(loan.interestEveryMonths)||0),10)||0) : modeVal;
+          const calc = Math.round(balance * monthlyRate * (k||1));
+          if(calc>0) amt = calc;
+        }catch{}
+      }
+      const presets = { defaultType:'interest', defaultAmount: amt, defaultDateISO: new Date().toISOString().slice(0,10) };
+      try{ console.log('[DK][quickPay] computed defaults', { loanId, amount: amt }); }catch{}
+      dk_newPaymentModal(loanId, presets).then((vals)=>{
+        if(!vals) return;
+        try{
+          const pays = Array.isArray(state?.pays)? state.pays:[];
+          const toAscii = (s)=> (typeof vj_normalizeDigits==='function'? vj_normalizeDigits(String(s)) : String(s));
+          const toNum = (s)=>{ const ascii = toAscii(s).replace(/[^0-9]/g,''); return Number(ascii)||0; };
+          const genId = ()=> `p_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+          const u = (typeof getCurrentUser==='function')? (getCurrentUser()||{}) : {};
+          const pay = { id: genId(), loanId: loanId, type: vals.type, amount: toNum(vals.amount), date: vals.date, note: vals.note||'', createdBy: u.uid||'', createdAt: new Date().toISOString() };
+          pays.push(pay);
+          state.pays = pays.slice();
+          try{ console.log('[DK][quickPay] added', pay); }catch{}
+          try{ refreshPaysTable && refreshPaysTable(); }catch{}
+          try{ refreshLoansTable && refreshLoansTable(); }catch{}
+          try{ refreshLoansCards && refreshLoansCards(); }catch{}
+        }catch{}
+      });
+    }catch{}
+  }
+  try{ if(typeof window!=='undefined'){ window.dk_quickAddInterestPayment = dk_quickAddInterestPayment; } }catch{}
   try{ if(typeof window!=='undefined'){ window.openPaymentFormForLoan = openPaymentFormForLoan; } }catch{}
   // Expose for console debugging
   try{ if(typeof window!=='undefined') window.computeLoanDerived = computeLoanDerived; }catch{}
@@ -694,32 +786,33 @@
             try{
             const parts = [];
             const todayISO = (new Date()).toISOString().slice(0,10);
-            // If no installments remain, show 'done' immediately
+            // If no installments remain, show 'done' and also show resolve button right away
             if(remInstNum===0){
-              return `<div class="badges-left"><span class="badge done">${statusLabel('zero')}</span></div>`;
+              const btn = `<button class="btn small resolve" data-act="resolve" data-id="${loan.id}" onclick="try{ window.dkResolveCard && window.dkResolveCard('${loan.id}'); }catch{}"><span class="ico">⏰</span><span>رسیدگی</span></button>`;
+              return `<div class="badges-left"><span class="badge done">${statusLabel('zero')}</span></div>${btn}`;
             }
-            // Simple approach: if table shows overdue badge, copy it
+            // Recompute derived snapshot locally to avoid any stale/closure issues
+            const d2 = (function(){ try{ return computeLoanDerived(loan)||{}; }catch{ return {}; } })();
+            // Derived overdue strictly from schedule dates (independent of balance to avoid false negatives)
             const hasRemainingInst = remInstNum > 0;
-            let hasOverdueInTable = false;
-            let overdueTextFromTable = '';
-            try{
-              const row = document.querySelector(`#loansTable tbody tr[data-id="${loan.id}"]`);
-              const overdueSpan = row?.querySelector('.overdue-tag');
-              if(overdueSpan){
-                hasOverdueInTable = true;
-                overdueTextFromTable = overdueSpan.textContent.trim();
-              }
-            }catch{}
-            // Consider overdue if table shows it OR derived nextDue shows it
-            const derivedOverdue = (function(){
-              try{ return (Number(d.balance||0)>0) && d.nextDue && String(d.nextDue) < todayISO; }catch{ return false; }
+            // Use outer-scope repayIso if available; otherwise try to coerce from any field
+            const repayBaseISO = (function(){
+              try{
+                if(typeof repayIso !== 'undefined' && repayIso) return repayIso; // from outer scope
+              }catch{}
+              try{
+                const raw = loan.repaymentDate || loan.repayDate || loan.payoffDate || loan.repaymentDateAlt || '';
+                return raw ? toISO(raw) : '';
+              }catch{ return ''; }
             })();
-            const isActuallyOverdue = (hasOverdueInTable || derivedOverdue) && hasRemainingInst;
-            // Calculate overdue months (prefer nextDue if available)
+            const baseDueISO = d2.nextDue || repayBaseISO || '';
+            const isActuallyOverdue = (function(){
+              try{ return hasRemainingInst && !!baseDueISO && String(baseDueISO) < todayISO; }catch{ return false; }
+            })();
             let actualOverdueMonths = 0;
             if(isActuallyOverdue){
               try{
-                const base = String(d.nextDue||loan.repaymentDate||'');
+                const base = String(baseDueISO || '');
                 const [y1,m1,dd1] = base.split('-').map(n=>parseInt(n,10));
                 const [y2,m2,dd2] = todayISO.split('-').map(n=>parseInt(n,10));
                 let months = (y2-y1)*12+(m2-m1);
@@ -728,116 +821,28 @@
               }catch{}
             }
 
-            // Build badges for status row
+            // Targeted debug for problematic card id
+            try{
+              if(loan && loan.id === 'yjod0ut1d5dmeqy5pdr'){
+                console.log('[DK][cards][statusHTML][yjod0ut1d5dmeqy5pdr]', {
+                  todayISO, remInstNum, balance: Number(d2.balance||0), nextDue: d2.nextDue || '', repayIso: repayBaseISO,
+                  baseDueISO, hasRemainingInst, isActuallyOverdue, actualOverdueMonths
+                });
+              }
+            }catch{}
+
+            // Build badges for status row (single source of truth)
             const badges = [];
-            // reflect derived category first
             try{
               if(cat==='zero') badges.push('<span class="badge done">'+statusLabel('zero')+'</span>');
               else if(cat==='awaiting') badges.push('<span class="badge awaiting">'+statusLabel('awaiting')+'</span>');
             }catch{}
-            // overdue badge from table or derived
             try{
-              if(hasOverdueInTable){ badges.push(`<span class="badge warn">${overdueTextFromTable}</span>`); }
-              else if(isActuallyOverdue && actualOverdueMonths>0){
+              if(isActuallyOverdue && actualOverdueMonths>0){
                 const faMonths = (typeof vj_toFaDigits==='function')? vj_toFaDigits(String(actualOverdueMonths)) : String(actualOverdueMonths);
                 badges.push(`<span class="badge warn">${faMonths} ماه دیرکرد</span>`);
               }
             }catch{}
-            // Add from table status if not already
-            try{
-              const row2 = document.querySelector(`#loansTable tbody tr[data-id="${loan.id}"]`);
-              const hasAwait = !!row2?.querySelector('.badge.awaiting');
-              const hasDone = !!row2?.querySelector('.badge.done');
-              const s = String(loan?.status||'').toLowerCase();
-              if((s==='awaiting' || hasAwait) && !badges.some(b=> b.includes('badge awaiting'))){ badges.push('<span class="badge awaiting">'+statusLabel('awaiting')+'</span>'); }
-              if(((s==='closed' || s==='zero') || hasDone) && !badges.some(b=> b.includes('badge done'))){ badges.push('<span class="badge done">'+statusLabel('zero')+'</span>'); }
-            }catch{}
-
-            // finalHTML will be composed after leftSide/rightSide are defined below
-            
-            // Check for pending badges
-            let hasPendingInTable = false;
-            try{
-              const row = document.querySelector(`#loansTable tbody tr[data-id="${loan.id}"]`);
-              const pendingSpan = row?.querySelector('.badge.awaiting');
-              hasPendingInTable = !!pendingSpan;
-            }catch{}
-            
-            // Debug: Find button coordinates and align badges
-            if (hasOverdueInTable || hasPendingInTable) {
-              setTimeout(() => {
-                try {
-                  const card = document.querySelector(`.loan-card[data-id="${loan.id}"]`);
-                  const button = card?.querySelector('.status-badges .btn.resolve');
-                  
-                  // Handle overdue badge
-                  const overdueBadge = card?.querySelector('.status-badges .badge.warn');
-                  if (button && overdueBadge) {
-                    const cardContainer = card.querySelector('.status-badges');
-                    
-                    // Position badge in status row with proper spacing and alignment
-                    cardContainer.style.position = 'relative';
-                    
-                    // Remove absolute positioning and use inline styling for better UX
-                    overdueBadge.style.position = 'static';
-                    overdueBadge.style.display = 'inline-block';
-                    overdueBadge.style.marginLeft = '8px';
-                    overdueBadge.style.marginRight = '8px';
-                    overdueBadge.style.verticalAlign = 'middle';
-                    overdueBadge.style.background = '#dc3545';
-                    overdueBadge.style.color = 'white';
-                    overdueBadge.style.padding = '2px 6px';
-                    overdueBadge.style.borderRadius = '8px';
-                    overdueBadge.style.fontSize = '12px';
-                    overdueBadge.style.fontWeight = '500';
-                    overdueBadge.style.lineHeight = '1.2';
-                    overdueBadge.style.whiteSpace = 'nowrap';
-                    
-                    // Move badge before the button in DOM order for better flow
-                    const statusContainer = button.parentElement;
-                    if (statusContainer && overdueBadge.parentElement !== statusContainer) {
-                      statusContainer.insertBefore(overdueBadge, button);
-                    }
-                    
-                    console.log(`[DK][align] Repositioned overdue badge for ${loan.id}`);
-                  }
-                  
-                  // Handle pending badge (awaiting class, not info)
-                  const pendingBadge = card?.querySelector('.status-badges .badge.awaiting');
-                  if (button && pendingBadge) {
-                    const cardContainer = card.querySelector('.status-badges');
-                    
-                    // Position badge in status row with proper spacing and alignment
-                    cardContainer.style.position = 'relative';
-                    
-                    // Remove absolute positioning and use inline styling for better UX
-                    pendingBadge.style.position = 'static';
-                    pendingBadge.style.display = 'inline-block';
-                    pendingBadge.style.marginLeft = '8px';
-                    pendingBadge.style.marginRight = '8px';
-                    pendingBadge.style.verticalAlign = 'middle';
-                    pendingBadge.style.background = '#17a2b8';
-                    pendingBadge.style.color = 'white';
-                    pendingBadge.style.padding = '2px 6px';
-                    pendingBadge.style.borderRadius = '8px';
-                    pendingBadge.style.fontSize = '12px';
-                    pendingBadge.style.fontWeight = '500';
-                    pendingBadge.style.lineHeight = '1.2';
-                    pendingBadge.style.whiteSpace = 'nowrap';
-                    
-                    // Move badge before the button in DOM order for better flow
-                    const statusContainer = button.parentElement;
-                    if (statusContainer && pendingBadge.parentElement !== statusContainer) {
-                      statusContainer.insertBefore(pendingBadge, button);
-                    }
-                    
-                    console.log(`[DK][align] Repositioned pending badge for ${loan.id}`);
-                  }
-                } catch (e) {
-                  console.log('[DK][align] Error:', e);
-                }
-              }, 300);
-            }
             
             const leftSide = badges.length > 0
               ? `<div class="badges-left">${badges.join('')}</div>`
@@ -850,8 +855,13 @@
             const hasAwaitingBadge = badges.some(b=> b.includes('badge awaiting'));
             const hasOverdueBadge = badges.some(b=> b.includes('badge warn'));
             const hasDoneBadge    = badges.some(b=> b.includes('badge done'));
-            if(canOps){
-              rightSide = `<button class="btn small resolve" data-act="resolve" data-id="${loan.id}"><span class="ico">⏰</span><span>رسیدگی</span></button>`;
+            // Show resolve button for ZERO and AWAITING regardless of permissions, and for OVERDUE when canOps
+            const showResolve = (
+              remInstNum===0 || hasDoneBadge || sStat==='awaiting' || cat==='awaiting' || hasAwaitingBadge ||
+              (isActuallyOverdue && canOps) || (hasOverdueBadge && canOps)
+            );
+            if(showResolve){
+              rightSide = `<button class=\"btn small resolve\" data-act=\"resolve\" data-id=\"${loan.id}\" onclick=\"try{ window.dkResolveCard && window.dkResolveCard('${loan.id}'); }catch{}\"><span class=\"ico\">⏰</span><span>رسیدگی</span></button>`;
             }
             const finalHTML = `${leftSide}${rightSide ? rightSide : ''}`;
             return finalHTML;
@@ -1053,7 +1063,17 @@
                 // - دیرکرد: فرم پرداخت را باز کن
                 // - اقساط تمام شد یا awaiting: تسویه/رسیدگی نوع ۲
                 if(isOverdue){
-                  try{ openPaymentFormForLoan(id); }catch(e){ console.warn('[DK][cards] openPaymentFormForLoan failed', e); }
+                  let handled = false;
+                  try{
+                    if(typeof openPaymentFormForLoan === 'function'){
+                      openPaymentFormForLoan(id);
+                      handled = true;
+                    }
+                  }catch(e){ console.warn('[DK][cards] openPaymentFormForLoan failed', e); }
+                  if(!handled){
+                    // Fallback to table action if global helper is unavailable
+                    try{ clickTableAction('loan-pay', id); handled = true; }catch{}
+                  }
                   return;
                 }
                 if(rem0 || awaiting){
@@ -2184,7 +2204,26 @@ host._bound = true;
 
       // 1) select loan
       const sel = document.querySelector(IDS.loanSelect);
-      if(sel){ sel.value = String(loanId||''); sel.dispatchEvent(new Event('change', { bubbles:true })); }
+      if(sel){
+        const target = String(loanId||'');
+        // ensure option exists; if not, rebuild options from current state.loans
+        if(!Array.from(sel.options||[]).some(o=> String(o.value)===target)){
+          try{
+            const loansAll = (state && Array.isArray(state.loans)) ? state.loans : [];
+            // IMPORTANT: include ALL loans here to ensure resolve flow can preselect any loan
+            const listForSelect = loansAll;
+            const opts = [`<option value="">— انتخاب قرض —</option>`]
+              .concat(listForSelect.map(l=>{
+                const cred = (l.creditor && String(l.creditor).trim()) || '—';
+                const text = `${l.borrower} — ${fmtTom(l.principal)} تومان (${cred})`;
+                return `<option value="${l.id}" title="${text}">${text}</option>`;
+              }));
+            sel.innerHTML = opts.join('');
+          }catch{}
+        }
+        sel.value = target;
+        sel.dispatchEvent(new Event('change', { bubbles:true }));
+      }
 
       // 2) set type to interest and trigger change (auto-fill amount)
       try{
@@ -2198,11 +2237,14 @@ host._bound = true;
         const alt = document.querySelector(IDS.payDateAlt); if(alt) alt.value = todayISO;
         const hint = document.querySelector(IDS.payDateHint);
         if(hint){ const fa = fmtFaDate(todayISO), en = fmtEnDate(todayISO); hint.textContent = fa && en ? `${fa} — ${en}` : ''; }
+        const payInp = document.querySelector(IDS.payDate);
+        if(payInp){ try{ payInp.value = fmtFaYMD(todayISO); }catch{} }
       }catch{}
 
       // 4) focus form
       pf?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       setTimeout(()=>{ try{ document.querySelector(IDS.loanSelect)?.focus(); }catch{} }, 220);
+      try{ console.log('[DK][openPaymentFormForLoan]', { loanId, selected: document.querySelector(IDS.loanSelect)?.value }); }catch{}
     }catch{}
   }
 
@@ -2234,7 +2276,7 @@ host._bound = true;
     if(repaid){
       const loans = state.loans.map(l=> l.id===loan.id ? { ...l, status:'closed' } : l);
       state.loans = loans;
-      refreshLoansTable(); refreshPaysTable(); updateSummary();
+      refreshLoansTable(); refreshPaysTable(); try{ refreshLoansCards && refreshLoansCards(); }catch{} updateSummary();
       return;
     }
     // Not repaid. Ask if wants to extend
@@ -2261,8 +2303,48 @@ host._bound = true;
     // awaiting collection
     const loans = state.loans.map(l=> l.id===loan.id ? { ...l, status:'awaiting' } : l);
     state.loans = loans;
-    refreshLoansTable(); refreshPaysTable(); updateSummary();
+    refreshLoansTable(); refreshPaysTable(); try{ refreshLoansCards && refreshLoansCards(); }catch{} updateSummary();
   }
+  // Expose resolver for external calls (console/tests/buttons)
+  try{ if(typeof window!== 'undefined'){ window.resolveZeroInstallments = resolveZeroInstallments; } }catch{}
+  
+  // Global helper: resolve action from cards (used as inline onclick fail-safe)
+  function dkResolveCard(id){
+    try{
+      const loan = (state.loans||[]).find(l=> String(l.id)===String(id));
+      if(!loan) return;
+      const cardEl = document.querySelector(`.loan-card[data-id="${id}"]`);
+      const today = new Date().toISOString().slice(0,10);
+      let isOverdue=false, rem0=false, awaiting=false;
+      let d2 = {};
+      try{ d2 = computeLoanDerived(loan)||{}; }catch{}
+      try{
+        const remInst = Number(d2.remainingInstallments||0);
+        const repayISO = (function(){ try{ return toISO(loan.repaymentDate); }catch{ return ''; } })();
+        const baseDueISO = d2.nextDue || repayISO || '';
+        isOverdue = (remInst>0) && !!baseDueISO && String(baseDueISO) < today;
+        rem0 = remInst===0;
+      }catch{}
+      try{
+        const s = String(loan.status||'').toLowerCase();
+        const catAttr = cardEl?.dataset?.cat || '';
+        const hasAwaitBadge = !!cardEl?.querySelector('.status-badges .badge.awaiting');
+        awaiting = (s==='awaiting') || (catAttr==='awaiting') || hasAwaitBadge;
+      }catch{}
+      try{ console.log('[DK][cards] dkResolveCard', { id, isOverdue, rem0, awaiting, nextDue:(d2.nextDue||''), repayISO:(function(){ try{ return toISO(loan.repaymentDate); }catch{ return ''; } })() }); }catch{}
+      if(isOverdue){
+        try{ if(typeof openPaymentFormForLoan==='function'){ openPaymentFormForLoan(id); return; } }catch{}
+        try{ document.querySelector(`#loansTable button[data-act="loan-pay"][data-id="${id}"]`)?.click(); }catch{}
+        return;
+      }
+      if(rem0 || awaiting){
+        try{ resolveZeroInstallments(id); }catch{}
+        return;
+      }
+      try{ document.querySelector(`#loansTable button[data-act="resolve"][data-id="${id}"]`)?.click(); }catch{}
+    }catch{}
+  }
+  try{ if(typeof window!== 'undefined' && typeof window.dkResolveCard!=='function'){ window.dkResolveCard = dkResolveCard; } }catch{}
   function j2d(jy,jm,jd){ const r=jalCal(jy); return g2d(r.gy,3, r.march)+ (jm-1)*31 - div(jm,7)*(jm-7) + jd -1; }
   function g2d(gy,gm,gd){ const d=div((gy+div(gm-8,6)+100100)*1461,4)+div(153*((gm+9)%12)+2,5)+gd-34840408; return d - div(div(gy+100100+div(gm-8,6),100)*3,4)+752; }
   function d2g(j){ let j2=4*j+139361631, i=div(j2%146097,4)*4+3; let gd=div((i%1461),4)*5+2; let gm=div(((gd%153)+5),5)+3; let gy=div(j2/146097,4)-100100+div(8-gm,6); gd = div((gd%153),5)+1; return [gy, gm, gd]; }
@@ -2333,6 +2415,18 @@ host._bound = true;
     }catch{ return null; }
   }
   function isAdminUser(){ try{ const u=getCurrentUser(); if(!u) return false; const e=(u.email||'').toLowerCase(); return ADMIN_EMAILS.includes(e); }catch{ return false; } }
+
+  // Final safety export (in case earlier export didn't run due to order)
+  try{
+    if(typeof window!=='undefined'){
+      if(typeof window.openPaymentFormForLoan !== 'function' && typeof openPaymentFormForLoan === 'function'){
+        window.openPaymentFormForLoan = openPaymentFormForLoan;
+      }
+      if(typeof window.resolveZeroInstallments !== 'function' && typeof resolveZeroInstallments === 'function'){
+        window.resolveZeroInstallments = resolveZeroInstallments;
+      }
+    }
+  }catch{}
   function isLimitedUser(){ return !isAdminUser(); }
   function canModifyLoan(loan){
     try{
@@ -2704,6 +2798,8 @@ host._bound = true;
       return `${y}-${m}-${day}`;
     }catch{ return '' }
   };
+  // expose for utils modules (e.g., resolve-card.js)
+  try{ if(typeof window!=='undefined'){ window.toISO = toISO; } }catch{}
   const addMonths = (dateStr, m) => {
     const d = new Date(dateStr);
     const t = new Date(d.getTime());
@@ -2861,8 +2957,11 @@ host._bound = true;
 
     // Next interest due based on payout mode (1/2/3 months or at maturity) and capped at maturity
     const mode = parseInt(String(loan.interestPayoutMode ?? 1),10); // 0: at maturity, 1: monthly, 2: bi-monthly, 3: quarterly
-    const durationMonths = (parseInt(String(toNum(loan.interestEveryMonths)||0),10) || monthsDiff(loan.startDate, loan.repaymentDate) || 0);
-    const maturityISO = loan.repaymentDate || (durationMonths>0 ? addMonths(loan.startDate, durationMonths) : '');
+    // Normalize dates to ISO for reliable arithmetic (handles DD/MM/YYYY and Persian digits)
+    const startISO = toISO(loan.startDate);
+    const repayISO = toISO(loan.repaymentDate);
+    const durationMonths = (parseInt(String(toNum(loan.interestEveryMonths)||0),10) || monthsDiff(startISO, repayISO) || 0);
+    const maturityISO = repayISO || (durationMonths>0 && startISO ? addMonths(startISO, durationMonths) : '');
     const paidInstallments = pays.filter(p=> p.type==='interest').length;
     const totalInstallments = mode===0 ? 1 : (durationMonths>0 ? Math.ceil(durationMonths / (mode||1)) : 0);
     let nextDue = '';
@@ -2870,7 +2969,7 @@ host._bound = true;
       nextDue = maturityISO || '';
     }else if(totalInstallments>0 && paidInstallments < totalInstallments){
       const targetMonthsFromStart = (mode || 1) * (paidInstallments + 1);
-      nextDue = addMonths(loan.startDate, targetMonthsFromStart);
+      nextDue = startISO ? addMonths(startISO, targetMonthsFromStart) : '';
       if(maturityISO && nextDue > maturityISO) nextDue = maturityISO;
     }
 
@@ -2882,6 +2981,16 @@ host._bound = true;
     const expectedPayoutByMode = Math.round(balance * monthlyRate * (k||0));
 
     const remainingInstallments = Math.max(0, totalInstallments - paidInstallments);
+
+    // Targeted debug for problematic card
+    try{
+      if(loan && loan.id === 'yjod0ut1d5dmeqy5pdr'){
+        console.log('[DK][derive][yjod0ut1d5dmeqy5pdr]', {
+          startISO, repayISO, durationMonths, maturityISO, mode, paidInstallments, totalInstallments,
+          nextDue, remainingInstallments, balance, cycleInterest, expectedPayoutByMode
+        });
+      }
+    }catch{}
 
     return { balance, nextDue, cycleInterest, expectedPayoutByMode, totalInstallments, remainingInstallments };
   }
