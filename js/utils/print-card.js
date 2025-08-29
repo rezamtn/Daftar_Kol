@@ -10,6 +10,7 @@
       const css = `
         .loan-card.lc-v2{ position:relative; }
         .loan-card .btn.print-btn{ position:absolute; top:6px; left:6px; z-index:2; opacity:.9 }
+        .loan-card .btn.print-btn .ico{ display:inline-block; margin-inline-end:6px }
         .loan-card .btn.print-btn:hover{ opacity:1 }
         /* Snapshot theme */
         .loan-card.print-snapshot{ background:#ffffff !important; color:#0b1220 !important; border:1px solid #e2e8f0 !important; box-shadow:none !important; border-radius:12px !important }
@@ -86,8 +87,10 @@
       const id = cardEl.getAttribute('data-id')||'';
       const btn = document.createElement('button');
       btn.className = 'btn small ghost print-btn';
-      btn.title = 'گرفتن تصویر کارت';
-      btn.textContent = '🖼️';
+      btn.title = 'چاپ کارت';
+      btn.setAttribute('aria-label','چاپ کارت');
+      // Match other buttons style: icon + text
+      btn.innerHTML = '<span class="ico">🖨️</span><span>چاپ</span>';
       btn.addEventListener('click', (e)=>{ e.preventDefault(); e.stopPropagation(); ns.print(cardEl); });
       cardEl.insertBefore(btn, cardEl.firstChild);
     }catch{}
