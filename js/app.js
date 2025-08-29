@@ -806,10 +806,10 @@
           // derived values (keep d for nextDue/balance), but compute progress locally as in table
           const d = (function(){ try{ return computeLoanDerived(loan)||{}; }catch{ return {}; } })();
           const _toNum = (v)=>{ try{ const s=String(v??''); const ascii=(typeof normalizeDigits==='function')? normalizeDigits(s):s; const cleaned=ascii.replace(/[^0-9.\-]/g,''); const n=Number(cleaned); return Number.isFinite(n)? n:0; }catch{ return Number(v)||0; } };
-          // Normalize payout mode to number (handles Persian digits as well)
+          // Normalize payout mode to number (allow 0 = at maturity; default to 1 only if NaN)
           const modeValP = (function(v){
-            const n = _toNum(v);
-            return n ? n : 1; // default monthly
+            const n = Number(_toNum(v));
+            return Number.isFinite(n) ? n : 1;
           })(loan.interestPayoutMode);
           const durationMonthsP = (parseInt(String(_toNum(loan.interestEveryMonths)||0),10) || monthsDiff(loan.startDate, loan.repaymentDate) || 0);
           const totInstNum = modeValP===0 ? 1 : (durationMonthsP>0 ? Math.ceil(durationMonthsP / (modeValP||1)) : 0);
@@ -839,12 +839,9 @@
             try{
             const parts = [];
             const todayISO = (new Date()).toISOString().slice(0,10);
-            // If no installments remain, show badge based on status: awaiting > done
+            // If no installments remain, always show 'zero' badge initially (per UX)
             if(remInstNum===0){
-              const sNow = String(loan?.status||'').toLowerCase();
-              const badge = (sNow==='awaiting')
-                ? `<span class="badge awaiting">${statusLabel('awaiting')}</span>`
-                : `<span class="badge done">${statusLabel('zero')}</span>`;
+              const badge = `<span class="badge done">${statusLabel('zero')}</span>`;
               const btn = `<button class="btn small resolve" data-act="resolve" data-id="${loan.id}" onclick="try{ window.dkResolveCard && window.dkResolveCard('${loan.id}'); }catch{}"><span class="ico">⏰</span><span>رسیدگی</span></button>`;
               return `<div class="badges-left">${badge}</div>${btn}`;
             }
@@ -895,30 +892,96 @@
               else if(cat==='awaiting') badges.push('<span class="badge awaiting">'+statusLabel('awaiting')+'</span>');
               else if(cat==='open' && !isActuallyOverdue) badges.push('<span class="badge good">'+statusLabel('open')+'</span>');
             }catch{}
+            // Overdue badge (revised logic):
+            // Show only if paid installments < expected installments up to today
             try{
-              // Show overdue badge only when not awaiting/zero
-              if(isActuallyOverdue && actualOverdueMonths>0 && cat!=='awaiting' && cat!=='zero'){
-                const faMonths = (typeof vj_toFaDigits==='function')? vj_toFaDigits(String(actualOverdueMonths)) : String(actualOverdueMonths);
-                badges.push(`<span class="badge warn">${faMonths} ماه دیرکرد</span>`);
+              const today = todayISO;
+              const startISO = (function(){ try{ return toISO(loan.startDate); }catch{ return ''; } })();
+              const repayISO2 = (function(){ try{ return toISO(loan.repaymentDate); }catch{ return ''; } })();
+              const mode = Number.isFinite(modeValP) ? modeValP : 1;
+              const mdiff = (a,b)=>{ try{ if(!a||!b) return 0; const s=new Date(a), e=new Date(b); let t=(e.getFullYear()-s.getFullYear())*12+(e.getMonth()-s.getMonth()); if(e.getDate()>=s.getDate()) t+=1; return Math.max(0,t); }catch{ return 0; } };
+              const durationMonthsAll = (function(){
+                try{
+                  const dm = parseInt(String(_toNum(loan.interestEveryMonths)||0),10);
+                  if(dm>0) return dm;
+                  if(startISO && repayISO2){ return mdiff(startISO, repayISO2)||0; }
+                }catch{}
+                return 0;
+              })();
+              const totalInst = mode===0 ? 1 : (durationMonthsAll>0 ? Math.ceil(durationMonthsAll/(mode||1)) : 0);
+              try{ dbg('[DK][cards][ovd:base]', { id:loan.id, mode, durationMonthsAll, totalInst, startISO, repayISO2, today }); }catch{}
+              // expected installments up to today (capped by total)
+              let expectedToNow = 0;
+              if(mode===0){
+                expectedToNow = (repayISO2 && today >= repayISO2) ? 1 : 0;
+              }else{
+                const untilISO = (repayISO2 && today>repayISO2) ? repayISO2 : today;
+                const mPassed = (startISO && untilISO) ? mdiff(startISO, untilISO) : 0;
+                expectedToNow = mPassed>0 ? Math.floor(mPassed / (mode||1)) : 0;
+                if(totalInst>0) expectedToNow = Math.min(expectedToNow, totalInst);
+              }
+              const paidCountCards = paidInstNum; // already computed from state.pays
+              let isBehind = (paidCountCards < expectedToNow);
+              // Gate by next due: if we still haven't reached next due, it's not behind even if remInst>0
+              try{
+                const baseDueGate = (function(){ try{ return d?.nextDue || repayISO2 || ''; }catch{ return repayISO2 || ''; } })();
+                if(Number(remInstNum)>0 && baseDueGate && today < baseDueGate){ isBehind = false; }
+              }catch{}
+              // Robust fallback: if loan window is wholly in the past and not fully paid, it's overdue
+              if(!isBehind && repayISO2 && today > repayISO2 && totalInst>0 && paidCountCards < totalInst){
+                isBehind = true;
+              }
+              try{ dbg('[DK][cards][ovd:calc]', { id:loan.id, paidCountCards, expectedToNow, isBehind, cat }); }catch{}
+              if(isBehind && cat!=='awaiting' && cat!=='zero'){
+                // Compute a sensible months label:
+                // For mode 0 -> months since repayment date if overdue; else 0
+                // For others -> missed installments * mode months
+                let monthsBehind = 0;
+                if(mode===0){
+                  monthsBehind = (repayISO2 && today > repayISO2) ? Math.max(0, mdiff(repayISO2, today)) : 0;
+                }else{
+                  const missedInst = expectedToNow - paidCountCards;
+                  monthsBehind = Math.max(0, missedInst * (mode||1));
+                }
+                // Show generic overdue badge without month count per UX
+                badges.push(`<span class="badge warn">دیرکرد</span>`);
+                // Ensure we do not also show the 'open' badge when behind
+                try{ for(let i=badges.length-2;i>=0;i--){ if(badges[i].includes('badge good')) badges.splice(i,1); } }catch{}
+                try{ dbg('[DK][cards][ovd:badge]', { id:loan.id, monthsBehind, badges }); }catch{}
               }
             }catch{}
             
-            const leftSide = badges.length > 0
-              ? `<div class="badges-left">${badges.join('')}</div>`
-              : `<div class="badges-left">${statusLabel(cat)}</div>`;
+            // Ensure we always render a badge (no plain-text fallback)
+            if(badges.length===0){
+              const lbl = statusLabel(cat);
+              const cls = (cat==='open') ? 'good' : (cat==='awaiting') ? 'awaiting' : (cat==='zero') ? 'done' : '';
+              badges.push(`<span class=\"badge ${cls}\">${lbl}</span>`);
+            }
+            // When DK_DEBUG is on, expose quick tooltip and inline debug line with computed values
+            const _dbgTitle = (function(){
+              try{
+                if(!window.DK_DEBUG) return '';
+                return `id=${loan.id} | mode=${Number.isFinite(modeValP)?modeValP:''} | totalInst=${typeof totalInst!=='undefined'?totalInst:''} | paid=${typeof paidInstNum!=='undefined'?paidInstNum:''} | expNow=${typeof expectedToNow!=='undefined'?expectedToNow:''} | behind=${typeof isBehind!=='undefined'?isBehind:''}`;
+              }catch{ return ''; }
+            })();
+            const _dbgHTML = (function(){
+              try{
+                if(!window.DK_DEBUG) return '';
+                const txt = _dbgTitle || '';
+                return txt ? `<div class=\"small\" style=\"direction:ltr;opacity:.6;margin-top:4px\">${txt}</div>` : '';
+              }catch{ return ''; }
+            })();
+            const leftSide = `<div class=\"badges-left\"${_dbgTitle?` title=\"${_dbgTitle}\"`:''}>${badges.join('')}${_dbgHTML}</div>`;
             let rightSide = '';
-            // Show resolve when:
-            // - overdue (pay due)
-            // - all installments are paid (type-2 resolve)
-            // - awaiting principal (robust: status or cat or table badge)
+            // Resolve button visibility
             const hasAwaitingBadge = badges.some(b=> b.includes('badge awaiting'));
             const hasOverdueBadge = badges.some(b=> b.includes('badge warn'));
-            const hasDoneBadge    = badges.some(b=> b.includes('badge done'));
-            // Show resolve button for ZERO and AWAITING regardless of permissions, and for OVERDUE when canOps
             const showResolve = (
-              remInstNum===0 || hasDoneBadge || sStat==='awaiting' || cat==='awaiting' || hasAwaitingBadge ||
-              (isActuallyOverdue && canOps) || (hasOverdueBadge && canOps)
+              (remInstNum===0) ||
+              (cat==='awaiting' || hasAwaitingBadge) ||
+              ((typeof isBehind!=='undefined' && isBehind) || isActuallyOverdue || hasOverdueBadge) && canOps
             );
+            try{ dbg('[DK][cards][resolve]', { id:loan.id, showResolve, remInstNum, hasAwaitingBadge, hasOverdueBadge, isActuallyOverdue, cat, badges }); }catch{}
             if(showResolve){
               rightSide = `<button class=\"btn small resolve\" data-act=\"resolve\" data-id=\"${loan.id}\" onclick=\"try{ window.dkResolveCard && window.dkResolveCard('${loan.id}'); }catch{}\"><span class=\"ico\">⏰</span><span>رسیدگی</span></button>`;
             }
@@ -2371,7 +2434,7 @@ host._bound = true;
         return { ...l, interestEveryMonths: newMonths, repaymentDate: newRepay, notes: (l.notes? (l.notes+"\n") : '') + noteLine, status: 'open' };
       });
       state.loans = loans;
-      refreshLoansTable(); refreshPaysTable(); updateSummary();
+      refreshLoansTable(); refreshPaysTable(); try{ refreshLoansCards && refreshLoansCards(); }catch{} updateSummary();
       return;
     }
     // awaiting collection
@@ -3147,27 +3210,14 @@ host._bound = true;
     // Map with derived once, to keep categorization consistent everywhere
     const withD = loans.map(l=>({ loan:l, d: computeLoanDerived(l)||{} }));
     if(uiFilters.status){
-      // Detailed debug buckets for status-specific filters
+      // Detailed debug buckets for status-specific filters (uniform via categorizeLoan)
       const _dbg = { inc: [], exc: [] };
       loans = withD.filter(row => {
         const k = uiFilters.status;
-        if(k==='overdue'){
-          // Overdue: only true overdue items (exclude awaiting)
-          const d = row.d || {};
-          const today = new Date().toISOString().slice(0,10);
-          const rem = Number(d.remainingInstallments||0);
-          const isOverdue = rem>0 && Number(d.balance||0)>0 && !!d.nextDue && String(d.nextDue) < today;
-          if(window.DK_DEBUG){ (isOverdue? _dbg.inc : _dbg.exc).push({ id: row.loan.id, rem, balance: Number(d.balance||0), nextDue: d.nextDue||'', today, isOverdue, status: String(row.loan.status||'') }); }
-          return isOverdue;
-        }
-        if(k==='awaiting'){
-          const s = String(row.loan.status||'').toLowerCase();
-          const rem = Number((row.d||{}).remainingInstallments||0);
-          const ok = (s==='awaiting' && rem===0);
-          if(window.DK_DEBUG){ (ok? _dbg.inc : _dbg.exc).push({ id: row.loan.id, rem, status: s }); }
-          return ok;
-        }
-        return categorizeLoan(row.loan, row.d) === k;
+        const cat = categorizeLoan(row.loan, row.d);
+        const ok = (cat === k);
+        if(window.DK_DEBUG){ (ok? _dbg.inc : _dbg.exc).push({ id: row.loan.id, cat, k, d: row.d, status: String(row.loan.status||'') }); }
+        return ok;
       }).map(row=>row.loan);
       try{ if(window.DK_DEBUG){ console.debug('[DK][filter][status='+uiFilters.status+'] include', _dbg.inc); console.debug('[DK][filter][status='+uiFilters.status+'] exclude', _dbg.exc); } }catch{}
     }else{
@@ -3197,19 +3247,34 @@ host._bound = true;
     try{
       const today = new Date().toISOString().slice(0,10);
       const remInstNum = Number(d && d.remainingInstallments)||0;
-      const balance = Number(d && d.balance)||0;
-      const hasNextDue = !!(d && d.nextDue);
-      const isOverdue = (remInstNum>0) && (balance>0) && hasNextDue && String(d.nextDue) < today;
-      const s = String(loan.status||'').toLowerCase();
-      // Business rules:
-      // - If installments remain: overdue has priority else open
-      // - If no installments remain: awaiting (explicit) overrides zero
-      if(remInstNum > 0){
-        return isOverdue ? 'overdue' : 'open';
-      }else{
-        if(s==='awaiting') return 'awaiting';
+      // If no installments remain: always show as 'zero' in categorization
+      // (User will click "رسیدگی" to transition to awaiting/open as needed)
+      if(remInstNum<=0){
         return 'zero';
       }
+      // For remaining installments: determine behind vs open using same logic as cards
+      const toISO = (x)=>{ try{ return x ? new Date(x).toISOString().slice(0,10) : ''; }catch{ return ''; } };
+      const startISO = toISO(loan.startDate);
+      const repayISO = toISO(loan.repaymentDate);
+      const mode = Number(loan.interestPayoutMode||1);
+      const mdiff = (a,b)=>{ try{ if(!a||!b) return 0; const s=new Date(a), e=new Date(b); let t=(e.getFullYear()-s.getFullYear())*12+(e.getMonth()-s.getMonth()); if(e.getDate()>=s.getDate()) t+=1; return Math.max(0,t); }catch{ return 0; } };
+      const durationMonthsAll = Number(loan.interestEveryMonths||0) || mdiff(startISO, repayISO) || 0;
+      const totalInst = (mode===0) ? 1 : (durationMonthsAll>0 ? Math.ceil(durationMonthsAll/(mode||1)) : 0);
+      const pays = Array.isArray(state?.pays) ? state.pays : [];
+      const paidInstNum = pays.filter(p=> String(p.loanId)===String(loan.id) && String(p.type)==='interest').length;
+      let expectedToNow = 0;
+      if(mode===0){ expectedToNow = (repayISO && today >= repayISO) ? 1 : 0; }
+      else{
+        const untilISO = (repayISO && today>repayISO) ? repayISO : today;
+        const mPassed = (startISO && untilISO) ? mdiff(startISO, untilISO) : 0;
+        expectedToNow = mPassed>0 ? Math.floor(mPassed/(mode||1)) : 0;
+        if(totalInst>0) expectedToNow = Math.min(expectedToNow, totalInst);
+      }
+      let isBehind = (paidInstNum < expectedToNow);
+      const baseDueGate = (d && d.nextDue) ? d.nextDue : (repayISO||'');
+      if(Number(remInstNum)>0 && baseDueGate && today < baseDueGate){ isBehind = false; }
+      if(!isBehind && repayISO && today>repayISO && totalInst>0 && paidInstNum<totalInst){ isBehind = true; }
+      return isBehind ? 'overdue' : 'open';
     }catch{ return 'open'; }
   }
 

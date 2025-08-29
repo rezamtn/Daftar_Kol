@@ -33,11 +33,12 @@
       try{
         const pays = Array.isArray(window.state?.pays) ? window.state.pays : [];
         const paidCount = pays.filter(p=> String(p.loanId)===String(loan.id) && String(p.type)==='interest').length;
-        const mode = parseInt(String(loan.interestPayoutMode ?? 1),10) || 1;
+        let mode = parseInt(String(loan.interestPayoutMode ?? 1),10);
+        if(!Number.isFinite(mode)) mode = 1; // default only if NaN; keep 0 as-is
         const startISO = toISO(loan.startDate);
         const repayISO2 = toISO(loan.repaymentDate);
         const durationMonths = (parseInt(String(loan.interestEveryMonths||0),10) || monthsDiffISO(startISO, repayISO2) || 0);
-        const totalInst = mode===0 ? 1 : (durationMonths>0 ? Math.ceil(durationMonths/(mode||1)) : 0);
+        const totalInst = (mode===0) ? 1 : (durationMonths>0 ? Math.ceil(durationMonths/(mode||1)) : 0);
         remInst = Math.max(0, totalInst - paidCount);
         if(mode===0){ nextDue = repayISO2; }
         else if(totalInst>0 && paidCount < totalInst){
@@ -57,6 +58,12 @@
         // fallback to legacy form
         try{ if(typeof window.openPaymentFormForLoan==='function'){ window.openPaymentFormForLoan(String(id)); return; } }catch{}
       }
+      // If status explicitly says awaiting principal, allow resolve path directly
+      try{
+        if(String(loan.status||'').toLowerCase()==='awaiting'){
+          if(typeof window.resolveZeroInstallments==='function'){ await window.resolveZeroInstallments(String(id)); return; }
+        }
+      }catch{}
       if(Number(remInst)===0){
         try{ if(typeof window.resolveZeroInstallments==='function'){ await window.resolveZeroInstallments(String(id)); return; } }catch{}
       }

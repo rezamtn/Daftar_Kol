@@ -38,6 +38,26 @@ This file documents notable changes, fixes, and enhancements by day.
   - Counters: computed solely via `categorizeLoan()` to guarantee consistency with filters. (`js/app.js`)
   - Added gated debug logs (`window.DK_DEBUG=true`) for status filters and summary counts. (`js/app.js`)
 
+- __Cards View — Resolve & Badges__
+  - Resolve button shows only when: اقساط تمام شد، در انتظار اصل، یا دیرکرد. در حالت «باز» پنهان است. (`js/app.js`)
+  - کلیک «رسیدگی» در کارت در حالت «در سررسید» (mode=0) درست عمل می‌کند و دیگر 0→1 تبدیل نمی‌شود. (`js/utils/resolve-card.js`)
+  - در حالت «awaiting» روی کارت، کلیک «رسیدگی» مسیر مناسب (تسویه اقساط صفر) را اجرا می‌کند. (`js/utils/resolve-card.js`)
+  - بعد از «تمدید»، کارت‌ها فوری رفرش می‌شوند و مدت/تاریخ تسویه نهایی و پیشرفت اقساط به‌روز دیده می‌شود. (`js/app.js` `resolveZeroInstallments()`)
+  - Badge «دیرکرد» حالا فقط متن «دیرکرد» را نشان می‌دهد؛ عدد ماه حذف شد. (`js/app.js`)
+  - همیشه وضعیت به‌صورت Badge رندر می‌شود (هیچ متن ساده‌ای مثل «باز» بدون استایل نمایش داده نمی‌شود). (`js/app.js`)
+
+- __Overdue Logic (Cards + Filters unified)__
+  - دیرکرد فقط وقتی نمایش داده می‌شود که تعداد اقساط پرداخت‌شده < اقساط موردانتظار تا امروز (با توجه به مود پرداخت و بازه‌ها). (`js/app.js`)
+  - Gate بر اساس سررسید بعدی: تا قبل از `nextDue`، با وجود اقساط مانده، «باز» باقی می‌ماند. (`js/app.js`)
+  - Fallback: اگر کل بازه تمام شده و همه اقساط پرداخت نشده، حتماً «دیرکرد». (`js/app.js`)
+  - شمارنده‌ها و فیلتر چیپ‌ها از همین منطق واحد در `categorizeLoan()` استفاده می‌کنند. (`js/app.js`)
+
+- __Zero vs Awaiting (Business Rule)__
+  - هر زمان اقساط به صفر برسد، ابتدا وضعیت «اقساط تمام شد» نمایش داده می‌شود. تغییر به «در انتظار اصل» یا «باز» فقط پس از «رسیدگی» انجام می‌شود. (`js/app.js`)
+
+- __Diagnostics__
+  - لاگ‌های تشخیصی DK_DEBUG برای کارت‌ها اضافه شد: ovd:base/calc/badge و resolve. همچنین یک خط دیباگ LTR زیر badge وضعیت هنگام `window.DK_DEBUG=true`. (`js/app.js`)
+
 ### File Highlights
 - `Daftar_Kol/css/styles.css`: shared RTL form utilities.
 - `Daftar_Kol/js/app.js`: new payment modal refactor, creditor chips refresh cards, auto-resize note, prefill.
